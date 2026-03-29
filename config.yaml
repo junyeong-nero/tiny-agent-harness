@@ -1,31 +1,43 @@
-provider: openrouter
+provider: openai
 
 models:
-  default: nvidia/nemotron-3-super-120b-a12b:free
-  orchestrator: nvidia/nemotron-3-super-120b-a12b:free
-  executor: nvidia/nemotron-3-super-120b-a12b:free
-  reviewer: nvidia/nemotron-3-super-120b-a12b:free
+    default: gpt-4o-mini
+    orchestrator: gpt-4o-mini
+    executor: gpt-4o-mini
+    reviewer: gpt-4o-mini
+
+# provider: openrouter
+
+# models:
+#     default: liquid/lfm-2.5-1.2b-instruct:free
+#     orchestrator: liquid/lfm-2.5-1.2b-instruct:free
+#     executor: liquid/lfm-2.5-1.2b-instruct:free
+#     reviewer: liquid/lfm-2.5-1.2b-instruct:free
 
 llm:
-  max_retries: 2
+    max_retries: 10
 
 runtime:
-  orchestrator_max_tool_steps: 2
-  executor_max_tool_steps: 3
-  reviewer_max_tool_steps: 3
+    orchestrator_max_tool_steps: 10
+    executor_max_tool_steps: 10
+    reviewer_max_tool_steps: 10
 
 tools:
-  orchestrator:
-    - list_files
-    - search
-  executor:
-    - bash
-    - read_file
-    - search
-    - list_files
-    - apply_patch
-  reviewer:
-    - read_file
-    - search
-    - list_files
-    - git_diff
+    orchestrator:
+        - bash
+        - read_file
+        - search
+        - list_files
+        - apply_patch
+        - search
+    executor:
+        - bash
+        - read_file
+        - search
+        - list_files
+        - apply_patch
+    reviewer:
+        - read_file
+        - search
+        - list_files
+        - git_diff

@@ -9,9 +9,12 @@ SRC_DIR = ROOT_DIR / "src"
 if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
+from tiny_agent_harness.channels import InputChannel, OutputChannel
+from tiny_agent_harness.handlers.listener import ListenerChannel
 from tiny_agent_harness.runtime import run_harness
 from tiny_agent_harness.schemas import (
     ExecutorStep,
+    OutputEvent,
     OrchestratorStep,
     ReviewerStep,
     ReviewResult,
@@ -29,7 +32,9 @@ class FakeStructuredLLM:
     def __init__(self) -> None:
         self.calls: list[tuple[str, type]] = []
 
-    def chat_structured(self, messages, agent_name, response_model, model=None, max_retries=None):
+    def chat_structured(
+        self, messages, agent_name, response_model, model=None, max_retries=None
+    ):
         self.calls.append((agent_name, response_model))
 
         if response_model is OrchestratorStep:
@@ -64,7 +69,7 @@ class FakeStructuredLLM:
 class RuntimeTestCase(unittest.TestCase):
     def test_run_harness_completes_single_mock_cycle(self) -> None:
         config = load_config(ROOT_DIR / "config.yaml")
-        request = RunRequest(goal="demo goal")
+        request = RunRequest(prompt="demo goal")
 
         state, result = run_harness(request, config)
 
@@ -79,9 +84,39 @@ class RuntimeTestCase(unittest.TestCase):
         self.assertTrue(state.done)
         self.assertEqual(result.status, "completed")
 
+    def test_run_harness_emits_listener_events_and_output(self) -> None:
+        config = load_config(ROOT_DIR / "config.yaml")
+        request = RunRequest(prompt="demo goal")
+        input_channel = InputChannel()
+        queued_request = input_channel.queue(request.prompt, session_id="session-a")
+        listeners = ListenerChannel()
+        listener_events = []
+        listeners.add_channel(
+            "collector", lambda _, event: listener_events.append(event)
+        )
+        output_handler = OutputChannel()
+        outputs: list[OutputEvent] = []
+        output_handler.add_channel("collector", lambda _, event: outputs.append(event))
+
+        state, result = run_harness(
+            request,
+            config,
+            listeners=listeners,
+            output_handler=output_handler,
+            input_channel=input_channel,
+        )
+
+        self.assertEqual(
+            [event.kind for event in listener_events], ["run_started", "run_completed"]
+        )
+        self.assertEqual(outputs[0].session_id, queued_request.session_id)
+        self.assertEqual(outputs[0].payload.request, request)
+        self.assertEqual(outputs[0].payload.state, state)
+        self.assertEqual(outputs[0].payload.result, result)
+
     def test_run_harness_uses_structured_llm_client_when_provided(self) -> None:
         config = load_config(ROOT_DIR / "config.yaml")
-        request = RunRequest(goal="demo goal")
+        request = RunRequest(prompt="demo goal")
         llm_client = FakeStructuredLLM()
 
         state, result = run_harness(request, config, llm_client=llm_client)
@@ -99,7 +134,9 @@ class RuntimeTestCase(unittest.TestCase):
         self.assertEqual(state.last_review_result.feedback, "llm reviewer approved")
         self.assertEqual(result.status, "completed")
 
-    def test_run_harness_executes_executor_tool_calls_when_tools_are_available(self) -> None:
+    def test_run_harness_executes_executor_tool_calls_when_tools_are_available(
+        self,
+    ) -> None:
         class FakeReadFileTool:
             name = "read_file"
             description = "Read a file from the workspace."
@@ -127,7 +164,9 @@ class RuntimeTestCase(unittest.TestCase):
                 self.calls: list[tuple[str, type]] = []
                 self.executor_calls = 0
 
-            def chat_structured(self, messages, agent_name, response_model, model=None, max_retries=None):
+            def chat_structured(
+                self, messages, agent_name, response_model, model=None, max_retries=None
+            ):
                 self.calls.append((agent_name, response_model))
 
                 if response_model is OrchestratorStep:
@@ -169,7 +208,7 @@ class RuntimeTestCase(unittest.TestCase):
                 raise AssertionError(f"unexpected response model: {response_model}")
 
         config = load_config(ROOT_DIR / "config.yaml")
-        request = RunRequest(goal="demo goal")
+        request = RunRequest(prompt="demo goal")
         llm_client = FakeToolAwareLLM()
         read_file_tool = FakeReadFileTool()
         tool_caller = ToolCaller(
@@ -190,7 +229,9 @@ class RuntimeTestCase(unittest.TestCase):
         self.assertEqual(state.last_review_result.decision, "approve")
         self.assertEqual(result.status, "completed")
 
-    def test_run_harness_executes_reviewer_tool_calls_when_tools_are_available(self) -> None:
+    def test_run_harness_executes_reviewer_tool_calls_when_tools_are_available(
+        self,
+    ) -> None:
         class FakeGitDiffTool:
             name = "git_diff"
             description = "Show git diff for selected paths."
@@ -221,7 +262,9 @@ class RuntimeTestCase(unittest.TestCase):
                 self.calls: list[tuple[str, type]] = []
                 self.reviewer_calls = 0
 
-            def chat_structured(self, messages, agent_name, response_model, model=None, max_retries=None):
+            def chat_structured(
+                self, messages, agent_name, response_model, model=None, max_retries=None
+            ):
                 self.calls.append((agent_name, response_model))
 
                 if response_model is OrchestratorStep:
@@ -263,7 +306,7 @@ class RuntimeTestCase(unittest.TestCase):
                 raise AssertionError(f"unexpected response model: {response_model}")
 
         config = load_config(ROOT_DIR / "config.yaml")
-        request = RunRequest(goal="demo goal")
+        request = RunRequest(prompt="demo goal")
         llm_client = FakeReviewerToolAwareLLM()
         git_diff_tool = FakeGitDiffTool()
         tool_caller = ToolCaller(
@@ -280,10 +323,15 @@ class RuntimeTestCase(unittest.TestCase):
 
         self.assertEqual(git_diff_tool.last_paths, ["README.md"])
         self.assertEqual(state.last_review_result.decision, "approve")
-        self.assertEqual(state.last_review_result.feedback, "review completed after checking the diff")
+        self.assertEqual(
+            state.last_review_result.feedback,
+            "review completed after checking the diff",
+        )
         self.assertEqual(result.status, "completed")
 
-    def test_run_harness_executes_orchestrator_read_only_tool_calls_when_available(self) -> None:
+    def test_run_harness_executes_orchestrator_read_only_tool_calls_when_available(
+        self,
+    ) -> None:
         class FakeSearchTool:
             name = "search"
             description = "Search for strings in the workspace."
@@ -311,7 +359,9 @@ class RuntimeTestCase(unittest.TestCase):
                 self.calls: list[tuple[str, type]] = []
                 self.orchestrator_calls = 0
 
-            def chat_structured(self, messages, agent_name, response_model, model=None, max_retries=None):
+            def chat_structured(
+                self, messages, agent_name, response_model, model=None, max_retries=None
+            ):
                 self.calls.append((agent_name, response_model))
 
                 if response_model is OrchestratorStep:
@@ -353,7 +403,7 @@ class RuntimeTestCase(unittest.TestCase):
                 raise AssertionError(f"unexpected response model: {response_model}")
 
         config = load_config(ROOT_DIR / "config.yaml")
-        request = RunRequest(goal="demo goal")
+        request = RunRequest(prompt="demo goal")
         llm_client = FakeOrchestratorToolAwareLLM()
         search_tool = FakeSearchTool()
         tool_caller = ToolCaller(
@@ -369,7 +419,84 @@ class RuntimeTestCase(unittest.TestCase):
         )
 
         self.assertEqual(search_tool.last_pattern, "tiny-agent-harness")
-        self.assertEqual(state.current_task.instructions, "update README based on the repo state")
+        self.assertEqual(
+            state.current_task.instructions, "update README based on the repo state"
+        )
+        self.assertEqual(state.last_review_result.decision, "approve")
+        self.assertEqual(result.status, "completed")
+
+    def test_run_harness_falls_back_when_orchestrator_exceeds_tool_steps(self) -> None:
+        class FakeSearchTool:
+            name = "search"
+            description = "Search for strings in the workspace."
+
+            def requirements(self) -> ToolRequirement:
+                return ToolRequirement(
+                    name=self.name,
+                    description=self.description,
+                    arguments_schema={
+                        "type": "object",
+                        "properties": {"pattern": {"type": "string"}},
+                    },
+                )
+
+            def run(self, arguments: dict) -> ToolResult:
+                return ToolResult(
+                    tool="search",
+                    ok=True,
+                    content="README.md:1:tiny-agent-harness",
+                )
+
+        class LoopingOrchestratorLLM:
+            def chat_structured(
+                self, messages, agent_name, response_model, model=None, max_retries=None
+            ):
+                if response_model is OrchestratorStep:
+                    return OrchestratorStep(
+                        status="tool_call",
+                        summary="inspect again",
+                        tool_call=ToolCall(
+                            tool="search",
+                            arguments={"pattern": "tiny-agent-harness"},
+                        ),
+                    )
+
+                if response_model is ExecutorStep:
+                    return ExecutorStep(
+                        status="completed",
+                        summary="executor completed fallback task",
+                        artifacts=["README.md"],
+                    )
+
+                if response_model is ReviewerStep:
+                    return ReviewerStep(
+                        status="completed",
+                        summary="review approved fallback path",
+                        decision="approve",
+                    )
+
+                raise AssertionError(f"unexpected response model: {response_model}")
+
+        config = load_config(ROOT_DIR / "config.yaml")
+        request = RunRequest(prompt="introduce yourself")
+        llm_client = LoopingOrchestratorLLM()
+        search_tool = FakeSearchTool()
+        tool_caller = ToolCaller(
+            tools={"search": search_tool},
+            actor_permissions={"orchestrator": ["search"]},
+        )
+
+        state, result = run_harness(
+            request,
+            config,
+            llm_client=llm_client,
+            tool_caller=tool_caller,
+        )
+
+        self.assertIn(
+            "orchestrator exceeded maximum tool steps", state.current_task.context
+        )
+        self.assertEqual(state.current_task.instructions, "introduce yourself")
         self.assertEqual(state.last_review_result.decision, "approve")
         self.assertEqual(result.status, "completed")
 
