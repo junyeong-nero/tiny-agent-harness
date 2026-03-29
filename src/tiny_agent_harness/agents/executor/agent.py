@@ -1,29 +1,7 @@
-from typing import Protocol
-
-from tiny_agent_harness.providers import ChatMessage
+from tiny_agent_harness.agents.shared import SupportsStructuredLLM, format_tool_result
+from tiny_agent_harness.agents.executor.prompt import build_initial_messages
 from tiny_agent_harness.schemas import AppConfig, ExecutorResult, ExecutorStep, Task
-from tiny_agent_harness.agents.executor.prompt import build_messages
-from tiny_agent_harness.tools import ToolCaller, ToolResult
-
-
-class SupportsStructuredLLM(Protocol):
-    def chat_structured(
-        self,
-        messages: list[ChatMessage],
-        agent_name: str,
-        response_model: type,
-        model: str | None = None,
-        max_retries: int | None = None,
-    ): ...
-
-
-def _format_tool_result(result: ToolResult) -> str:
-    return (
-        f"tool={result.tool}\n"
-        f"ok={result.ok}\n"
-        f"content={result.content}\n"
-        f"error={result.error or ''}"
-    )
+from tiny_agent_harness.tools import ToolCaller
 
 
 def _execute_with_tools(
@@ -37,14 +15,15 @@ def _execute_with_tools(
         actor="executor",
         allowed_tool_names=task.allowed_tools,
     )
-    tool_results: list[str] = []
+    messages = list(build_initial_messages(task, config, tool_requirements))
 
     for _ in range(max_tool_steps):
         step = llm_client.chat_structured(
-            messages=build_messages(task, config, tool_requirements, tool_results),
+            messages=messages,
             agent_name="executor",
             response_model=ExecutorStep,
         )
+        messages = messages + [{"role": "assistant", "content": step.model_dump_json()}]
 
         if step.status in {"completed", "failed"}:
             return ExecutorResult(
@@ -57,7 +36,6 @@ def _execute_with_tools(
             return ExecutorResult(
                 status="failed",
                 summary="executor returned tool_call status without a tool_call payload",
-                artifacts=[],
             )
 
         try:
@@ -67,18 +45,11 @@ def _execute_with_tools(
                 allowed_tool_names=task.allowed_tools,
             )
         except ValueError as exc:
-            return ExecutorResult(
-                status="failed",
-                summary=str(exc),
-                artifacts=[],
-            )
-        tool_results.append(_format_tool_result(result))
+            return ExecutorResult(status="failed", summary=str(exc))
 
-    return ExecutorResult(
-        status="failed",
-        summary="executor exceeded maximum tool steps",
-        artifacts=[],
-    )
+        messages = messages + [{"role": "user", "content": format_tool_result(result)}]
+
+    return ExecutorResult(status="failed", summary="executor exceeded maximum tool steps")
 
 
 def executor_agent(
@@ -92,7 +63,7 @@ def executor_agent(
 
     if llm_client is not None:
         step = llm_client.chat_structured(
-            messages=build_messages(task, config, [], []),
+            messages=build_initial_messages(task, config, []),
             agent_name="executor",
             response_model=ExecutorStep,
         )
@@ -100,7 +71,6 @@ def executor_agent(
             return ExecutorResult(
                 status="failed",
                 summary="executor requested a tool, but no tool registry was provided",
-                artifacts=[],
             )
         return ExecutorResult(
             status=step.status,

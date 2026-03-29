@@ -1,7 +1,5 @@
-from typing import Protocol
-
-from tiny_agent_harness.agents.reviewer.prompt import build_messages
-from tiny_agent_harness.providers import ChatMessage
+from tiny_agent_harness.agents.shared import SupportsStructuredLLM, format_tool_result
+from tiny_agent_harness.agents.reviewer.prompt import build_initial_messages
 from tiny_agent_harness.schemas import (
     AppConfig,
     ExecutorResult,
@@ -9,27 +7,7 @@ from tiny_agent_harness.schemas import (
     ReviewerStep,
     Task,
 )
-from tiny_agent_harness.tools import ToolCaller, ToolResult
-
-
-class SupportsStructuredLLM(Protocol):
-    def chat_structured(
-        self,
-        messages: list[ChatMessage],
-        agent_name: str,
-        response_model: type,
-        model: str | None = None,
-        max_retries: int | None = None,
-    ): ...
-
-
-def _format_tool_result(result: ToolResult) -> str:
-    return (
-        f"tool={result.tool}\n"
-        f"ok={result.ok}\n"
-        f"content={result.content}\n"
-        f"error={result.error or ''}"
-    )
+from tiny_agent_harness.tools import ToolCaller
 
 
 def _execute_with_tools(
@@ -41,20 +19,15 @@ def _execute_with_tools(
 ) -> ReviewResult:
     max_tool_steps = config.runtime.reviewer_max_tool_steps
     tool_requirements = tool_caller.available_tool_requirements(actor="reviewer")
-    tool_results: list[str] = []
+    messages = list(build_initial_messages(task, executor_result, config, tool_requirements))
 
     for _ in range(max_tool_steps):
         step = llm_client.chat_structured(
-            messages=build_messages(
-                task,
-                executor_result,
-                config,
-                tool_requirements,
-                tool_results,
-            ),
+            messages=messages,
             agent_name="reviewer",
             response_model=ReviewerStep,
         )
+        messages = messages + [{"role": "assistant", "content": step.model_dump_json()}]
 
         if step.status == "completed":
             if step.decision is None:
@@ -62,10 +35,7 @@ def _execute_with_tools(
                     decision="retry",
                     feedback="reviewer returned completed status without a decision",
                 )
-            return ReviewResult(
-                decision=step.decision,
-                feedback=step.summary,
-            )
+            return ReviewResult(decision=step.decision, feedback=step.summary)
 
         if step.tool_call is None:
             return ReviewResult(
@@ -76,16 +46,11 @@ def _execute_with_tools(
         try:
             result = tool_caller.run_call(step.tool_call, actor="reviewer")
         except ValueError as exc:
-            return ReviewResult(
-                decision="retry",
-                feedback=str(exc),
-            )
-        tool_results.append(_format_tool_result(result))
+            return ReviewResult(decision="retry", feedback=str(exc))
 
-    return ReviewResult(
-        decision="retry",
-        feedback="reviewer exceeded maximum tool steps",
-    )
+        messages = messages + [{"role": "user", "content": format_tool_result(result)}]
+
+    return ReviewResult(decision="retry", feedback="reviewer exceeded maximum tool steps")
 
 
 def reviewer_agent(
@@ -97,16 +62,12 @@ def reviewer_agent(
 ) -> ReviewResult:
     if llm_client is not None and tool_caller is not None:
         return _execute_with_tools(
-            task,
-            executor_result,
-            config,
-            llm_client=llm_client,
-            tool_caller=tool_caller,
+            task, executor_result, config, llm_client=llm_client, tool_caller=tool_caller
         )
 
     if llm_client is not None:
         step = llm_client.chat_structured(
-            messages=build_messages(task, executor_result, config, [], []),
+            messages=build_initial_messages(task, executor_result, config, []),
             agent_name="reviewer",
             response_model=ReviewerStep,
         )
@@ -120,10 +81,7 @@ def reviewer_agent(
                 decision="retry",
                 feedback="reviewer returned completed status without a decision",
             )
-        return ReviewResult(
-            decision=step.decision,
-            feedback=step.summary,
-        )
+        return ReviewResult(decision=step.decision, feedback=step.summary)
 
     if executor_result.status != "completed":
         return ReviewResult(
@@ -133,7 +91,6 @@ def reviewer_agent(
                 f"with model {config.models.reviewer}"
             ),
         )
-
     return ReviewResult(
         decision="approve",
         feedback=(
