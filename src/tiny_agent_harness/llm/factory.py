@@ -25,11 +25,11 @@ def create_provider(config: AppConfig, api_key: str | None = None) -> BaseProvid
 def create_llm_client(
     config: AppConfig,
     api_key: str | None = None,
-    max_retries: int = 2,
+    max_retries: int | None = None,
 ) -> LLMClient:
     provider = create_provider(config=config, api_key=api_key)
     return LLMClient(
         provider=provider,
         models=config.models,
-        max_retries=max_retries,
+        max_retries=config.llm.max_retries if max_retries is None else max_retries,
     )

@@ -6,7 +6,7 @@ from tiny_agent_harness.providers import BaseProvider, ChatMessage
 from tiny_agent_harness.schemas import ModelsConfig
 
 
-AgentName = Literal["main_loop", "executor", "reviewer"]
+AgentName = Literal["orchestrator", "executor", "reviewer"]
 StructuredResponseT = TypeVar("StructuredResponseT", bound=BaseModel)
 
 JSON_RESPONSE_INSTRUCTION = (
@@ -34,7 +34,7 @@ class LLMClient:
             return self.provider.resolve_model(model)
 
         model_by_agent = {
-            "main_loop": self.models.main_loop,
+            "orchestrator": self.models.orchestrator,
             "executor": self.models.executor,
             "reviewer": self.models.reviewer,
         }

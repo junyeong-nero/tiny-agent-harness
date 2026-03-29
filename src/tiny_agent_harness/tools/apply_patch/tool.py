@@ -1,20 +1,23 @@
 import subprocess
 
+from tiny_agent_harness.tools.apply_patch.description import DESCRIPTION
+from tiny_agent_harness.tools.apply_patch.schema import ApplyPatchArgs
 from tiny_agent_harness.tools.base import BaseTool, ToolResult
 
 
 class ApplyPatchTool(BaseTool):
     name = "apply_patch"
+    description = DESCRIPTION
+    args_model = ApplyPatchArgs
 
-    def run(self, patch: str) -> ToolResult:
+    def execute(self, arguments: ApplyPatchArgs) -> ToolResult:
         completed = subprocess.run(
             ["git", "apply", "--whitespace=nowarn", "-"],
             cwd=self.workspace_root,
-            input=patch,
+            input=arguments.patch,
             capture_output=True,
             text=True,
         )
-
         return ToolResult(
             tool=self.name,
             ok=completed.returncode == 0,

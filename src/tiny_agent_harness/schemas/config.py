@@ -2,18 +2,18 @@ from pathlib import Path
 from typing import Any
 
 import yaml
-from pydantic import BaseModel, ConfigDict, ValidationError, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator, model_validator
 
 
 class ModelsConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     default: str
-    main_loop: str | None = None
+    orchestrator: str | None = None
     executor: str | None = None
     reviewer: str | None = None
 
-    @field_validator("default", "main_loop", "executor", "reviewer", mode="before")
+    @field_validator("default", "orchestrator", "executor", "reviewer", mode="before")
     @classmethod
     def validate_model_name(cls, value: Any) -> Any:
         if value is None:
@@ -24,10 +24,75 @@ class ModelsConfig(BaseModel):
 
     @model_validator(mode="after")
     def apply_defaults(self) -> "ModelsConfig":
-        self.main_loop = self.main_loop or self.default
+        self.orchestrator = self.orchestrator or self.default
         self.executor = self.executor or self.default
         self.reviewer = self.reviewer or self.default
         return self
+
+
+class LLMConfig(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    max_retries: int = 2
+
+    @field_validator("max_retries", mode="before")
+    @classmethod
+    def validate_max_retries(cls, value: Any) -> int:
+        if not isinstance(value, int) or value < 0:
+            raise ValueError("max_retries must be an integer greater than or equal to 0")
+        return value
+
+
+class RuntimeConfig(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    orchestrator_max_tool_steps: int = 2
+    executor_max_tool_steps: int = 3
+    reviewer_max_tool_steps: int = 3
+
+    @field_validator(
+        "orchestrator_max_tool_steps",
+        "executor_max_tool_steps",
+        "reviewer_max_tool_steps",
+        mode="before",
+    )
+    @classmethod
+    def validate_max_tool_steps(cls, value: Any) -> int:
+        if not isinstance(value, int) or value < 1:
+            raise ValueError("max tool steps must be an integer greater than or equal to 1")
+        return value
+
+
+class ToolPermissionsConfig(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    orchestrator: list[str] = Field(default_factory=lambda: ["list_files", "search"])
+    executor: list[str] = Field(
+        default_factory=lambda: ["bash", "read_file", "search", "list_files", "apply_patch"]
+    )
+    reviewer: list[str] = Field(
+        default_factory=lambda: ["read_file", "search", "list_files", "git_diff"]
+    )
+
+    @field_validator("orchestrator", "executor", "reviewer", mode="before")
+    @classmethod
+    def validate_permissions(cls, value: Any) -> list[str]:
+        if not isinstance(value, list):
+            raise ValueError("tool permissions must be a list of tool names")
+
+        normalized: list[str] = []
+        for item in value:
+            if not isinstance(item, str) or not item.strip():
+                raise ValueError("tool permission entries must be non-empty strings")
+            normalized.append(item.strip())
+        return normalized
+
+    def as_actor_permissions(self) -> dict[str, list[str]]:
+        return {
+            "orchestrator": list(self.orchestrator),
+            "executor": list(self.executor),
+            "reviewer": list(self.reviewer),
+        }
 
 
 class AppConfig(BaseModel):
@@ -35,6 +100,9 @@ class AppConfig(BaseModel):
 
     provider: str
     models: ModelsConfig
+    llm: LLMConfig = Field(default_factory=LLMConfig)
+    runtime: RuntimeConfig = Field(default_factory=RuntimeConfig)
+    tools: ToolPermissionsConfig = Field(default_factory=ToolPermissionsConfig)
 
     @field_validator("provider", mode="before")
     @classmethod

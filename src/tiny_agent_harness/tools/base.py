@@ -3,6 +3,7 @@ from pathlib import Path
 from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
+from tiny_agent_harness.schemas import ToolRequirement
 
 
 class ToolResult(BaseModel):
@@ -17,6 +18,8 @@ class ToolResult(BaseModel):
 
 class BaseTool(ABC):
     name: str = "base"
+    description: str = ""
+    args_model: type[BaseModel] = BaseModel
 
     def __init__(self, workspace_root: str | Path) -> None:
         self.workspace_root = Path(workspace_root).resolve()
@@ -29,6 +32,20 @@ class BaseTool(ABC):
             raise ValueError(f"path '{path}' escapes the workspace root")
         return candidate
 
+    def requirements(self) -> ToolRequirement:
+        return ToolRequirement(
+            name=self.name,
+            description=self.description,
+            arguments_schema=self.args_model.model_json_schema(),
+        )
+
+    def validate_arguments(self, arguments: dict[str, Any]) -> BaseModel:
+        return self.args_model.model_validate(arguments)
+
+    def run(self, arguments: dict[str, Any]) -> ToolResult:
+        validated_arguments = self.validate_arguments(arguments)
+        return self.execute(validated_arguments)
+
     @abstractmethod
-    def run(self, *args: Any, **kwargs: Any) -> ToolResult:
+    def execute(self, arguments: BaseModel) -> ToolResult:
         raise NotImplementedError

@@ -18,6 +18,8 @@ from tiny_agent_harness.tools import (
     ListFilesTool,
     ReadFileTool,
     SearchTool,
+    ToolCaller,
+    create_default_tool_caller,
     create_default_tools,
 )
 
@@ -29,6 +31,22 @@ class ToolsTestCase(unittest.TestCase):
             set(tools),
             {"bash", "read_file", "search", "list_files", "apply_patch", "git_diff"},
         )
+
+    def test_tool_caller_exposes_requirements_and_permissions(self) -> None:
+        tool_caller = create_default_tool_caller(
+            str(ROOT_DIR),
+            actor_permissions={
+                "executor": ["bash", "read_file"],
+                "reviewer": ["read_file", "git_diff"],
+            },
+        )
+
+        executor_requirements = tool_caller.available_tool_requirements(actor="executor")
+        self.assertEqual([req.name for req in executor_requirements], ["bash", "read_file"])
+        self.assertIn("properties", tool_caller.tool_requirements("bash").arguments_schema)
+
+        with self.assertRaisesRegex(ValueError, "not allowed"):
+            tool_caller.run("apply_patch", {"patch": ""}, actor="reviewer")
 
     def test_file_tools_read_search_and_list_files(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -42,15 +60,17 @@ class ToolsTestCase(unittest.TestCase):
             search_tool = SearchTool(workspace)
             list_files_tool = ListFilesTool(workspace)
 
-            read_result = read_tool.run("docs/note.txt", start_line=2, end_line=2)
+            read_result = read_tool.run(
+                {"path": "docs/note.txt", "start_line": 2, "end_line": 2}
+            )
             self.assertTrue(read_result.ok)
             self.assertEqual(read_result.content, "beta keyword")
 
-            search_result = search_tool.run("keyword")
+            search_result = search_tool.run({"pattern": "keyword"})
             self.assertTrue(search_result.ok)
             self.assertIn("docs/note.txt:2:beta keyword", search_result.content)
 
-            list_result = list_files_tool.run()
+            list_result = list_files_tool.run({})
             self.assertTrue(list_result.ok)
             self.assertIn("docs/note.txt", list_result.content)
 
@@ -59,7 +79,7 @@ class ToolsTestCase(unittest.TestCase):
             workspace = Path(tmpdir)
             bash_tool = BashTool(workspace)
 
-            result = bash_tool.run("pwd")
+            result = bash_tool.run({"command": "pwd"})
 
             self.assertTrue(result.ok)
             self.assertEqual(Path(result.content.strip()).resolve(), workspace.resolve())
@@ -84,11 +104,11 @@ class ToolsTestCase(unittest.TestCase):
                 "+after\n"
             )
 
-            apply_result = apply_patch_tool.run(patch)
+            apply_result = apply_patch_tool.run({"patch": patch})
             self.assertTrue(apply_result.ok, apply_result.error)
             self.assertEqual(target_file.read_text(encoding="utf-8"), "after\n")
 
-            diff_result = git_diff_tool.run(paths=["demo.txt"])
+            diff_result = git_diff_tool.run({"paths": ["demo.txt"]})
             self.assertTrue(diff_result.ok)
             self.assertIn("+after", diff_result.content)
 

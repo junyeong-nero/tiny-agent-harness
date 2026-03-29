@@ -78,7 +78,7 @@ class LLMClientTestCase(unittest.TestCase):
 
         result = client.chat(
             messages=[{"role": "user", "content": "retry please"}],
-            agent_name="main_loop",
+            agent_name="orchestrator",
         )
 
         self.assertEqual(result, "ok after retry")

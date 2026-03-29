@@ -13,6 +13,7 @@ from tiny_agent_harness.llm import create_llm_client
 from tiny_agent_harness.schemas.config import load_config
 from tiny_agent_harness.schemas.runtime import RunRequest
 from tiny_agent_harness.runtime import run_harness
+from tiny_agent_harness.tools import create_default_tool_caller
 
 
 def _resolve_provider_api_key(provider_name: str) -> str | None:
@@ -30,11 +31,15 @@ def main():
     request = RunRequest(goal=goal)
     api_key = _resolve_provider_api_key(config.provider)
     llm_client = create_llm_client(config, api_key=api_key) if api_key else None
-    state, result = run_harness(request, config, llm_client=llm_client)
+    tool_caller = create_default_tool_caller(
+        str(PROJECT_ROOT),
+        actor_permissions=config.tools.as_actor_permissions(),
+    )
+    state, result = run_harness(request, config, llm_client=llm_client, tool_caller=tool_caller)
 
     print(f"provider: {config.provider}")
     print(f"mode: {'live_llm' if llm_client else 'mock'}")
-    print(f"main_loop model: {config.models.main_loop}")
+    print(f"orchestrator model: {config.models.orchestrator}")
     print(f"executor model: {config.models.executor}")
     print(f"reviewer model: {config.models.reviewer}")
     print(f"goal: {request.goal}")

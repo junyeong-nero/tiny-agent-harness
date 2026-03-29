@@ -1,6 +1,7 @@
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
+from tiny_agent_harness.schemas.tools import ToolCall
 
 
 class RunRequest(BaseModel):
@@ -18,6 +19,24 @@ class Task(BaseModel):
     allowed_tools: list[str] = Field(default_factory=list)
 
 
+class OrchestratorStep(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    status: Literal["tool_call", "completed"]
+    summary: str
+    tool_call: ToolCall | None = None
+    task: Task | None = None
+
+
+class ExecutorStep(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    status: Literal["tool_call", "completed", "failed"]
+    summary: str
+    tool_call: ToolCall | None = None
+    artifacts: list[str] = Field(default_factory=list)
+
+
 class ExecutorResult(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -31,6 +50,15 @@ class ReviewResult(BaseModel):
 
     decision: Literal["approve", "retry"]
     feedback: str
+
+
+class ReviewerStep(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    status: Literal["tool_call", "completed"]
+    summary: str
+    tool_call: ToolCall | None = None
+    decision: Literal["approve", "retry"] | None = None
 
 
 class RunState(BaseModel):

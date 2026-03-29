@@ -5,9 +5,14 @@ from tiny_agent_harness.tools.git_diff import GitDiffTool
 from tiny_agent_harness.tools.list_files import ListFilesTool
 from tiny_agent_harness.tools.read_file import ReadFileTool
 from tiny_agent_harness.tools.search import SearchTool
+from tiny_agent_harness.tools.tool_caller import (
+    ActorPermissions,
+    ToolCaller,
+    ToolRegistry,
+)
 
 
-def create_default_tools(workspace_root: str) -> dict[str, BaseTool]:
+def create_default_tools(workspace_root: str) -> ToolRegistry:
     tools: list[BaseTool] = [
         BashTool(workspace_root),
         ReadFileTool(workspace_root),
@@ -19,6 +24,16 @@ def create_default_tools(workspace_root: str) -> dict[str, BaseTool]:
     return {tool.name: tool for tool in tools}
 
 
+def create_default_tool_caller(
+    workspace_root: str,
+    actor_permissions: ActorPermissions | None = None,
+) -> ToolCaller:
+    return ToolCaller(
+        tools=create_default_tools(workspace_root),
+        actor_permissions=actor_permissions,
+    )
+
+
 __all__ = [
     "ApplyPatchTool",
     "BaseTool",
@@ -27,6 +42,9 @@ __all__ = [
     "ListFilesTool",
     "ReadFileTool",
     "SearchTool",
+    "ToolCaller",
+    "ToolRegistry",
     "ToolResult",
+    "create_default_tool_caller",
     "create_default_tools",
 ]
