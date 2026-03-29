@@ -10,7 +10,7 @@ if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
 from cli import collecting_listener
-from tiny_agent_harness.handlers.listener import ListenerChannel
+from tiny_agent_harness.channels.listener import ListenerChannel
 from tiny_agent_harness.schemas import ListenerEvent
 
 

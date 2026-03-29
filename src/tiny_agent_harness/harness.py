@@ -2,9 +2,10 @@ import uuid
 
 from tiny_agent_harness.agents import executor_agent, orchestrator_agent, reviewer_agent
 from tiny_agent_harness.channels.input import InputChannel
+from tiny_agent_harness.channels.listener import ListenerChannel
 from tiny_agent_harness.channels.output import OutputChannel
-from tiny_agent_harness.handlers.listener import ListenerChannel
 from tiny_agent_harness.llm.client import LLMClient
+from tiny_agent_harness.llm.factory import create_llm_client
 from tiny_agent_harness.schemas import (
     AppConfig,
     ListenerEvent,
@@ -14,11 +15,9 @@ from tiny_agent_harness.schemas import (
     RunState,
 )
 from tiny_agent_harness.tools import ToolCaller, create_default_tool_caller
-from tiny_agent_harness.llm.factory import create_llm_client
 
 
-class Harness:
-
+class TinyHarness:
     def __init__(
         self,
         config: AppConfig,

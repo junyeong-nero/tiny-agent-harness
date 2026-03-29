@@ -2,7 +2,7 @@ import json
 from typing import Literal, Sequence, TypeVar
 
 from pydantic import BaseModel, ValidationError
-from tiny_agent_harness.handlers.listener import ListenerChannel
+from tiny_agent_harness.channels.listener import ListenerChannel
 from tiny_agent_harness.providers import BaseProvider, ChatMessage
 from tiny_agent_harness.schemas import ListenerEvent, ModelsConfig
 

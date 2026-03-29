@@ -9,7 +9,7 @@ Application code lives under `src/tiny_agent_harness/`.
 - `providers/`: vendor adapters such as OpenRouter and OpenAI
 - `schemas/`: Pydantic models for config and runtime messages
 - `tools/`: workspace tools such as `bash`, `read_file`, `search`, and `git_diff`
-- `runtime.py`: top-level loop orchestration
+- `harness.py`: top-level loop orchestration
 
 Repository-level files:
 
@@ -28,7 +28,7 @@ Use `OPENROUTER_API_KEY` to enable live OpenRouter execution. Without an API key
 
 ## Coding Style & Naming Conventions
 
-Use 4-space indentation and keep code Python 3.13-compatible. Prefer small, typed modules with explicit imports. Runtime payloads should use Pydantic models from `schemas/`. New agent-specific prompts belong next to the agent, for example `agents/executor/prompt.py`. Keep orchestration in `runtime.py` and vendor-specific HTTP code in `providers/`.
+Use 4-space indentation and keep code Python 3.13-compatible. Prefer small, typed modules with explicit imports. Runtime payloads should use Pydantic models from `schemas/`. New agent-specific prompts belong next to the agent, for example `agents/executor/prompt.py`. Keep orchestration in `harness.py` and vendor-specific HTTP code in `providers/`.
 
 ## Testing Guidelines
 

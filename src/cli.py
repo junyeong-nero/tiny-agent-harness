@@ -3,7 +3,7 @@ import sys
 from pathlib import Path
 from typing import Callable
 
-from tiny_agent_harness.runtime import Harness
+from tiny_agent_harness.harness import TinyHarness
 from tiny_agent_harness.schemas import (
     ListenerEvent,
     OutputEvent,
@@ -69,7 +69,7 @@ def main() -> int:
     project_root = Path(__file__).resolve().parents[1]
     config = load_config(project_root / "config.yaml")
 
-    harness = Harness(
+    harness = TinyHarness(
         config=config,
         workspace_root=str(project_root),
     )

@@ -1,6 +1,6 @@
 import os
 
-from tiny_agent_harness.handlers.listener import ListenerChannel
+from tiny_agent_harness.channels.listener import ListenerChannel
 from tiny_agent_harness.llm.client import LLMClient
 from tiny_agent_harness.providers import (
     BaseProvider,

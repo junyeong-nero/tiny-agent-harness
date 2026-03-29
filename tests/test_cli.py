@@ -12,7 +12,7 @@ if str(SRC_DIR) not in sys.path:
 
 import cli
 from tiny_agent_harness.channels import InputChannel, OutputChannel
-from tiny_agent_harness.handlers.listener import ListenerChannel
+from tiny_agent_harness.channels.listener import ListenerChannel
 from tiny_agent_harness.schemas import (
     AppConfig,
     LLMConfig,

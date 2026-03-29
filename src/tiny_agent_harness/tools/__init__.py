@@ -1,3 +1,4 @@
+from tiny_agent_harness.channels.listener import ListenerChannel
 from tiny_agent_harness.tools.apply_patch import ApplyPatchTool
 from tiny_agent_harness.tools.base import BaseTool, ToolResult
 from tiny_agent_harness.tools.bash import BashTool
@@ -10,7 +11,6 @@ from tiny_agent_harness.tools.tool_caller import (
     ToolCaller,
     ToolRegistry,
 )
-from tiny_agent_harness.handlers.listener import ListenerChannel
 
 
 def create_default_tools(workspace_root: str) -> ToolRegistry:

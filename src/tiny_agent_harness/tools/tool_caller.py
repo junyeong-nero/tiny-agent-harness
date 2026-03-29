@@ -1,6 +1,6 @@
 from typing import Any
 
-from tiny_agent_harness.handlers.listener import ListenerChannel
+from tiny_agent_harness.channels.listener import ListenerChannel
 from tiny_agent_harness.schemas import ListenerEvent, ToolCall, ToolPermissionsConfig, ToolRequirement
 from tiny_agent_harness.tools.base import BaseTool, ToolResult
 
