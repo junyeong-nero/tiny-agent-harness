@@ -1,0 +1,7 @@
+provider: openrouter
+
+models:
+  default: nvidia/nemotron-3-super-120b-a12b:free
+  main_loop: nvidia/nemotron-3-super-120b-a12b:free
+  executor: nvidia/nemotron-3-super-120b-a12b:free
+  reviewer: nvidia/nemotron-3-super-120b-a12b:free
