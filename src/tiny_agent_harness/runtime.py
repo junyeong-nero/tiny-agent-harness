@@ -33,7 +33,9 @@ class Harness:
         self.ch_input = ch_input or InputChannel()
         self.ch_listener = ch_listener or ListenerChannel()
         self.ch_output = ch_output or OutputChannel()
-        self.llm_client = llm_client or create_llm_client(config, listeners=self.ch_listener)
+        self.llm_client = llm_client or create_llm_client(
+            config, listeners=self.ch_listener
+        )
         self.tool_caller = tool_caller or create_default_tool_caller(
             workspace_root=workspace_root,
             actor_permissions=config.tools.as_actor_permissions(),
