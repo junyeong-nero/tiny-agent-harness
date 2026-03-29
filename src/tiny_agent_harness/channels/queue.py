@@ -15,6 +15,9 @@ class IngressQueue:
             return None
         return self._queue.popleft()
 
+    def flush(self):
+        self._queue.clear()
+
     def is_empty(self) -> bool:
         return not self._queue
 
@@ -30,6 +33,9 @@ class EgressQueue:
         if self.is_empty():
             return None
         return self._queue.popleft()
+
+    def flush(self):
+        self._queue.clear()
 
     def drain(self) -> list[OutputEvent]:
         items = list(self._queue)
