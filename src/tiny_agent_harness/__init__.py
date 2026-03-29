@@ -1,33 +1,29 @@
 from tiny_agent_harness.channels import (
     EgressQueue,
     IngressQueue,
-    OutputEventDispatcher,
-    RequestProcessor,
+    OutputChannel,
 )
+from tiny_agent_harness.channels.input import InputChannel
+from tiny_agent_harness.handlers.listener import ListenerChannel
 from tiny_agent_harness.llm import LLMClient, create_llm_client, create_provider
-from tiny_agent_harness.output_handlers import (
-    CollectingOutputHandler,
-    ConsoleOutputHandler,
-)
 from tiny_agent_harness.providers import (
     BaseProvider,
     OpenAIProvider,
     OpenRouterProvider,
 )
-from tiny_agent_harness.runtime import run_harness
+from tiny_agent_harness.runtime import Harness
 
 __all__ = [
     "BaseProvider",
-    "CollectingOutputHandler",
-    "ConsoleOutputHandler",
+    "Harness",
     "LLMClient",
     "EgressQueue",
     "IngressQueue",
+    "InputChannel",
+    "ListenerChannel",
     "OpenAIProvider",
     "OpenRouterProvider",
-    "OutputEventDispatcher",
-    "RequestProcessor",
+    "OutputChannel",
     "create_llm_client",
     "create_provider",
-    "run_harness",
 ]

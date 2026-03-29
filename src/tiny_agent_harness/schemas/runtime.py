@@ -7,7 +7,7 @@ from tiny_agent_harness.schemas.tools import ToolCall
 class RunRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    goal: str
+    prompt: str
 
 
 class Task(BaseModel):
@@ -64,7 +64,7 @@ class ReviewerStep(BaseModel):
 class RunState(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    goal: str
+    task: str
     step_count: int = 0
     current_task: Task | None = None
     last_executor_result: ExecutorResult | None = None
