@@ -28,7 +28,7 @@ def _execute_with_tools(
         actor="orchestrator",
         allowed_tool_names=ORCHESTRATOR_TOOLS,
     )
-    messages = list(build_initial_messages(state, config, tool_requirements))
+    messages = build_initial_messages(state, config, tool_requirements)
 
     for _ in range(max_tool_steps):
         step = llm_client.chat_structured(

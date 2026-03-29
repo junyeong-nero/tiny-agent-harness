@@ -1,3 +1,4 @@
+from tiny_agent_harness.agents.shared import format_tool_catalog
 from tiny_agent_harness.providers import ChatMessage
 from tiny_agent_harness.schemas import AppConfig, RunState, ToolRequirement
 
@@ -11,13 +12,7 @@ def build_initial_messages(
     config: AppConfig,
     tool_requirements: list[ToolRequirement],
 ) -> list[ChatMessage]:
-    tool_catalog = (
-        "\n".join(
-            f"- {req.name}: {req.description}\n  schema: {req.arguments_schema}"
-            for req in tool_requirements
-        )
-        or "none"
-    )
+    tool_catalog = format_tool_catalog(tool_requirements)
 
     return [
         {

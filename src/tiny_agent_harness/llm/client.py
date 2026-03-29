@@ -145,8 +145,8 @@ class LLMClient:
         max_retries: int | None = None,
     ) -> StructuredResponseT:
         retry_limit = self.max_retries if max_retries is None else max_retries
-        prepared_messages = list(
-            self._prepare_structured_messages(messages=messages, response_model=response_model)
+        prepared_messages = self._prepare_structured_messages(
+            messages=messages, response_model=response_model
         )
 
         last_error: Exception | None = None

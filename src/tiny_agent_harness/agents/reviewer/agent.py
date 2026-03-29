@@ -19,7 +19,7 @@ def _execute_with_tools(
 ) -> ReviewResult:
     max_tool_steps = config.runtime.reviewer_max_tool_steps
     tool_requirements = tool_caller.available_tool_requirements(actor="reviewer")
-    messages = list(build_initial_messages(task, executor_result, config, tool_requirements))
+    messages = build_initial_messages(task, executor_result, config, tool_requirements)
 
     for _ in range(max_tool_steps):
         step = llm_client.chat_structured(

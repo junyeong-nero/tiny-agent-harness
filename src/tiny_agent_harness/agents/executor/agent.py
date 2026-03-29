@@ -15,7 +15,7 @@ def _execute_with_tools(
         actor="executor",
         allowed_tool_names=task.allowed_tools,
     )
-    messages = list(build_initial_messages(task, config, tool_requirements))
+    messages = build_initial_messages(task, config, tool_requirements)
 
     for _ in range(max_tool_steps):
         step = llm_client.chat_structured(
