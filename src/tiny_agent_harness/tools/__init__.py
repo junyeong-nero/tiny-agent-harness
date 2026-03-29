@@ -10,6 +10,7 @@ from tiny_agent_harness.tools.tool_caller import (
     ToolCaller,
     ToolRegistry,
 )
+from tiny_agent_harness.handlers.listener import ListenerChannel
 
 
 def create_default_tools(workspace_root: str) -> ToolRegistry:
@@ -27,10 +28,12 @@ def create_default_tools(workspace_root: str) -> ToolRegistry:
 def create_default_tool_caller(
     workspace_root: str,
     actor_permissions: ActorPermissions | None = None,
+    listeners: ListenerChannel | None = None,
 ) -> ToolCaller:
     return ToolCaller(
         tools=create_default_tools(workspace_root),
         actor_permissions=actor_permissions,
+        ch_listener=listeners,
     )
 
 
