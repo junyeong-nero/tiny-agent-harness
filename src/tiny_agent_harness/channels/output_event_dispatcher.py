@@ -1,9 +1,9 @@
-from tiny_agent_harness.channels import EgressQueue
+from tiny_agent_harness.channels.queue import EgressQueue
 from tiny_agent_harness.output_handlers import OutputHandler
 from tiny_agent_harness.schemas import OutputEvent
 
 
-class EgressDispatcher:
+class OutputEventDispatcher:
     def __init__(
         self,
         egress_queue: EgressQueue,

@@ -1,10 +1,10 @@
-from tiny_agent_harness.channels.base import EgressQueue, IngressQueue
+from tiny_agent_harness.channels.queue import EgressQueue, IngressQueue
 from tiny_agent_harness.runtime import run_harness
 from tiny_agent_harness.schemas import AppConfig, OutputEvent, RunOutput
 from tiny_agent_harness.tools import ToolCaller
 
 
-class ChannelDriver:
+class RequestProcessor:
     def __init__(
         self,
         ingress_queue: IngressQueue,

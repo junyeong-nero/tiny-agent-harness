@@ -11,10 +11,10 @@ if str(SRC_DIR) not in sys.path:
 
 from tiny_agent_harness.llm import create_llm_client
 from tiny_agent_harness.channels import (
-    ChannelDriver,
-    EgressDispatcher,
-    LocalEgressQueue,
-    LocalIngressQueue,
+    EgressQueue,
+    IngressQueue,
+    OutputEventDispatcher,
+    RequestProcessor,
 )
 from tiny_agent_harness.output_handlers import ConsoleOutputHandler
 from tiny_agent_harness.schemas.config import load_config
@@ -42,23 +42,23 @@ def main():
         str(PROJECT_ROOT),
         actor_permissions=config.tools.as_actor_permissions(),
     )
-    ingress_queue = LocalIngressQueue()
-    egress_queue = LocalEgressQueue()
-    driver = ChannelDriver(
+    ingress_queue = IngressQueue()
+    egress_queue = EgressQueue()
+    processor = RequestProcessor(
         ingress_queue=ingress_queue,
         egress_queue=egress_queue,
         config=config,
         llm_client=llm_client,
         tool_caller=tool_caller,
     )
-    dispatcher = EgressDispatcher(
+    dispatcher = OutputEventDispatcher(
         egress_queue=egress_queue,
         handlers=[ConsoleOutputHandler()],
     )
     ingress_queue.push(InputRequest(message_id="cli-1", payload=request))
-    output = driver.process_next()
+    output = processor.process_next()
     if output is None:
-        raise RuntimeError("channel driver did not produce an output")
+        raise RuntimeError("request processor did not produce an output")
 
     print(f"provider: {config.provider}")
     print(f"mode: {'live_llm' if llm_client else 'mock'}")

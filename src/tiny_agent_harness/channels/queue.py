@@ -1,10 +1,9 @@
 from collections import deque
 
-from tiny_agent_harness.channels.base import EgressQueue, IngressQueue
 from tiny_agent_harness.schemas import InputRequest, OutputEvent
 
 
-class LocalIngressQueue(IngressQueue):
+class IngressQueue:
     def __init__(self) -> None:
         self._queue: deque[InputRequest] = deque()
 
@@ -20,7 +19,7 @@ class LocalIngressQueue(IngressQueue):
         return not self._queue
 
 
-class LocalEgressQueue(EgressQueue):
+class EgressQueue:
     def __init__(self) -> None:
         self._queue: deque[OutputEvent] = deque()
 
