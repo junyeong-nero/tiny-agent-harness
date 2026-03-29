@@ -18,6 +18,7 @@ from tiny_agent_harness.schemas.runtime import (
     RunState,
     Task,
 )
+from tiny_agent_harness.schemas.listeners import ListenerEvent
 from tiny_agent_harness.schemas.tools import ToolCall, ToolRequirement
 
 __all__ = [
@@ -26,6 +27,7 @@ __all__ = [
     "ExecutorResult",
     "InputRequest",
     "LLMConfig",
+    "ListenerEvent",
     "ModelsConfig",
     "OrchestratorStep",
     "OutputEvent",
