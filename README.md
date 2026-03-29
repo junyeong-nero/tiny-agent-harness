@@ -5,7 +5,7 @@ It is intentionally small in scope, easy to inspect, and not production-oriented
 
 ## Overview
 
-This repository is a minimal runtime for a small `main_loop -> executor -> reviewer` workflow.
+This repository is a minimal runtime for a small `orchestrator -> executor -> reviewer` workflow.
 It aims to stay simple enough to understand end-to-end while still leaving room for configurable
 models, pluggable I/O, and lightweight behavioral extensions.
 
@@ -13,7 +13,7 @@ models, pluggable I/O, and lightweight behavioral extensions.
 
 The harness is built around a fixed 3-agent structure:
 
-1. `main_loop`
+1. `orchestrator`
    Owns the goal, state, control flow, and external input/output.
 2. `executor`
    Performs the assigned task and produces structured execution results.
@@ -23,20 +23,21 @@ The harness is built around a fixed 3-agent structure:
 Runtime loop:
 
 ```text
-goal -> main_loop -> executor -> reviewer -> state update -> next step / stop
+goal -> orchestrator -> executor -> reviewer -> state update -> next step / stop
 ```
 
-Only `main_loop` should interact with external input and output channels.
+Only `orchestrator` should interact with external input and output channels.
 `executor` and `reviewer` should operate only on internal runtime messages and return structured
-results back to `main_loop`.
+results back to `orchestrator`.
 
 ## Runtime Model
 
 - `OpenRouter` as the default LLM provider
-- `config.yaml` for provider and model selection
+- `config.yaml` for provider, model, retry, and runtime step settings
 - pluggable `channels` for external input and output
 - pluggable `listeners` for internal runtime events
 - Markdown-based `skills` for lightweight behavior customization
+- schema-driven tool calling through a shared `ToolCaller`
 
 Minimal configuration:
 
@@ -45,6 +46,33 @@ provider: openrouter
 
 models:
   default: nvidia/nemotron-3-super-120b-a12b:free
+  orchestrator: nvidia/nemotron-3-super-120b-a12b:free
+  executor: nvidia/nemotron-3-super-120b-a12b:free
+  reviewer: nvidia/nemotron-3-super-120b-a12b:free
+
+llm:
+  max_retries: 2
+
+runtime:
+  orchestrator_max_tool_steps: 2
+  executor_max_tool_steps: 3
+  reviewer_max_tool_steps: 3
+
+tools:
+  orchestrator:
+    - list_files
+    - search
+  executor:
+    - bash
+    - read_file
+    - search
+    - list_files
+    - apply_patch
+  reviewer:
+    - read_file
+    - search
+    - list_files
+    - git_diff
 ```
 
 Suggested skill layout:
@@ -65,9 +93,12 @@ Skills are read from Markdown and injected into agent context before execution.
 
 Tool access is assigned per role:
 
-- `main_loop`: `list_files`, `search`
+- `orchestrator`: `list_files`, `search`
 - `executor`: `bash`, `read_file`, `search`, `list_files`, `apply_patch`
 - `reviewer`: `read_file`, `search`, `list_files`, `git_diff`
+
+All tool calls are schema-driven. Each tool exposes a description and argument schema, and the
+shared caller layer enforces role-based access before execution.
 
 ## Current Status
 
