@@ -6,6 +6,7 @@ from tiny_agent_harness.schemas.config import (
     ToolPermissionsConfig,
     load_config,
 )
+from tiny_agent_harness.schemas.channels import InputRequest, OutputEvent, RunOutput
 from tiny_agent_harness.schemas.runtime import (
     ExecutorStep,
     ExecutorResult,
@@ -23,13 +24,16 @@ __all__ = [
     "AppConfig",
     "ExecutorStep",
     "ExecutorResult",
+    "InputRequest",
     "LLMConfig",
     "ModelsConfig",
     "OrchestratorStep",
+    "OutputEvent",
     "ReviewResult",
     "ReviewerStep",
     "RuntimeConfig",
     "ToolPermissionsConfig",
+    "RunOutput",
     "RunRequest",
     "RunResult",
     "RunState",

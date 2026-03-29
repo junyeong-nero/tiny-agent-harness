@@ -10,9 +10,16 @@ if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
 from tiny_agent_harness.llm import create_llm_client
+from tiny_agent_harness.channels import (
+    ChannelDriver,
+    EgressDispatcher,
+    LocalEgressQueue,
+    LocalIngressQueue,
+)
+from tiny_agent_harness.output_handlers import ConsoleOutputHandler
 from tiny_agent_harness.schemas.config import load_config
+from tiny_agent_harness.schemas import InputRequest
 from tiny_agent_harness.schemas.runtime import RunRequest
-from tiny_agent_harness.runtime import run_harness
 from tiny_agent_harness.tools import create_default_tool_caller
 
 
@@ -35,18 +42,33 @@ def main():
         str(PROJECT_ROOT),
         actor_permissions=config.tools.as_actor_permissions(),
     )
-    state, result = run_harness(request, config, llm_client=llm_client, tool_caller=tool_caller)
+    ingress_queue = LocalIngressQueue()
+    egress_queue = LocalEgressQueue()
+    driver = ChannelDriver(
+        ingress_queue=ingress_queue,
+        egress_queue=egress_queue,
+        config=config,
+        llm_client=llm_client,
+        tool_caller=tool_caller,
+    )
+    dispatcher = EgressDispatcher(
+        egress_queue=egress_queue,
+        handlers=[ConsoleOutputHandler()],
+    )
+    ingress_queue.push(InputRequest(message_id="cli-1", payload=request))
+    output = driver.process_next()
+    if output is None:
+        raise RuntimeError("channel driver did not produce an output")
 
     print(f"provider: {config.provider}")
     print(f"mode: {'live_llm' if llm_client else 'mock'}")
     print(f"orchestrator model: {config.models.orchestrator}")
     print(f"executor model: {config.models.executor}")
     print(f"reviewer model: {config.models.reviewer}")
-    print(f"goal: {request.goal}")
-    print(f"task: {state.current_task.id if state.current_task else 'none'}")
-    print(f"executor status: {state.last_executor_result.status if state.last_executor_result else 'none'}")
-    print(f"review decision: {state.last_review_result.decision if state.last_review_result else 'none'}")
-    print(f"result: {result.summary}")
+
+    dispatched = dispatcher.dispatch_next()
+    if dispatched is None:
+        raise RuntimeError("egress dispatcher did not dispatch an output")
 
 
 if __name__ == "__main__":
