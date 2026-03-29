@@ -34,10 +34,21 @@ results back to `orchestrator`.
 
 - `OpenRouter` as the default LLM provider
 - `config.yaml` for provider, model, retry, and runtime step settings
-- pluggable `channels` for external input and output
+- queue-based ingress and egress around the runtime
+- pluggable output handlers behind an `EgressDispatcher`
 - pluggable `listeners` for internal runtime events
 - Markdown-based `skills` for lightweight behavior customization
 - schema-driven tool calling through a shared `ToolCaller`
+
+Current channel flow:
+
+```text
+input sources -> IngressQueue -> ChannelDriver -> runtime
+             -> EgressQueue -> EgressDispatcher -> output handlers
+```
+
+The default implementation uses local in-process queues, but the queue boundary is intended to make
+other input sources and output sinks easier to add later.
 
 Minimal configuration:
 
@@ -107,7 +118,7 @@ version of the agreed design:
 
 - load provider and model settings from `config.yaml`
 - run the fixed 3-agent loop
-- expose basic input/output channels
+- expand queue-backed input/output integrations
 - support Markdown-based skills
 - provide a small core tool set for execution and review
 
