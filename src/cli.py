@@ -3,9 +3,6 @@ import sys
 from pathlib import Path
 from typing import Callable
 
-from tiny_agent_harness.channels.input import InputChannel
-from tiny_agent_harness.channels.output import OutputChannel
-from tiny_agent_harness.handlers.listener import ListenerChannel
 from tiny_agent_harness.runtime import Harness
 from tiny_agent_harness.schemas import (
     ListenerEvent,
@@ -54,7 +51,9 @@ def console_listener(_: str, event: ListenerEvent) -> None:
         tool = event.data.get("tool", "unknown")
         ok = event.data.get("ok", False)
         status = "ok" if ok else "failed"
-        content = truncate(str(event.data.get("content", "") or event.data.get("error", "")))
+        content = truncate(
+            str(event.data.get("content", "") or event.data.get("error", ""))
+        )
         print(f"{agent}← {tool} [{status}] {content}")
         return
 
@@ -65,51 +64,32 @@ def console_output_handler(_: str, event: OutputEvent) -> None:
     print(event.payload.result.summary)
 
 
-def _build_harness(project_root: Path) -> tuple[Harness, InputChannel]:
+def main() -> int:
+
+    project_root = Path(__file__).resolve().parents[1]
     config = load_config(project_root / "config.yaml")
-
-    ch_input = InputChannel()
-
-    ch_listener = ListenerChannel()
-    ch_listener.add_channel("console", console_listener)
-
-    ch_output = OutputChannel()
-    ch_output.add_channel("console", console_output_handler)
 
     harness = Harness(
         config=config,
         workspace_root=str(project_root),
-        ch_input=ch_input,
-        ch_listener=ch_listener,
-        ch_output=ch_output,
     )
-    return harness, ch_input
-
-
-def main(argv: list[str] | None = None) -> int:
-    args = list(sys.argv[1:] if argv is None else argv)
-    project_root = Path(__file__).resolve().parents[1]
-    harness, ch_input = _build_harness(project_root)
-
-    if args:
-        ch_input.queue(" ".join(args))
-        harness.run()
-        return 0
+    harness.ch_output.add_channel("console", console_output_handler)
+    harness.ch_listener.add_channel("console", console_listener)
 
     print("tiny-agent interactive mode (type 'exit' or press Ctrl+D to quit)")
     while True:
         try:
-            goal = input("\n> ").strip()
+            prompt = input("\n> ").strip()
         except (EOFError, KeyboardInterrupt):
             print()
             break
 
-        if not goal:
+        if not prompt:
             continue
-        if goal.lower() in {"exit", "quit"}:
+        if prompt.lower() in {"exit", "quit"}:
             break
 
-        ch_input.queue(goal)
+        harness.ch_input.queue(prompt)
         harness.run()
 
     return 0
