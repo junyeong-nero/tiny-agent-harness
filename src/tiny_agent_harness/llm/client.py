@@ -2,8 +2,9 @@ import json
 from typing import Literal, Sequence, TypeVar
 
 from pydantic import BaseModel, ValidationError
+from tiny_agent_harness.handlers.listener import ListenerChannel
 from tiny_agent_harness.providers import BaseProvider, ChatMessage
-from tiny_agent_harness.schemas import ModelsConfig
+from tiny_agent_harness.schemas import ListenerEvent, ModelsConfig
 
 
 AgentName = Literal["orchestrator", "executor", "reviewer"]
@@ -21,6 +22,7 @@ class LLMClient:
         provider: BaseProvider,
         models: ModelsConfig,
         max_retries: int = 2,
+        listeners: ListenerChannel | None = None,
     ) -> None:
         if max_retries < 0:
             raise ValueError("max_retries must be greater than or equal to 0")
@@ -28,6 +30,22 @@ class LLMClient:
         self.provider = provider
         self.models = models
         self.max_retries = max_retries
+        self.listeners = listeners or ListenerChannel()
+
+    def _emit(
+        self,
+        kind: str,
+        agent_name: AgentName | None = None,
+        message: str = "",
+        data: dict | None = None,
+    ) -> None:
+        event = ListenerEvent(
+            kind=kind,
+            agent=agent_name,
+            message=message,
+            data=data or {},
+        )
+        self.listeners.call(event)
 
     def resolve_model(self, agent_name: AgentName, model: str | None = None) -> str:
         if isinstance(model, str) and model.strip():
@@ -70,7 +88,30 @@ class LLMClient:
         model: str | None = None,
     ) -> str:
         resolved_model = self.resolve_model(agent_name=agent_name, model=model)
-        return self.provider.chat(messages=messages, model=resolved_model)
+        self._emit(
+            kind="llm_request",
+            agent_name=agent_name,
+            message="sending request",
+            data={"model": resolved_model, "messages": [dict(message) for message in messages]},
+        )
+        try:
+            response = self.provider.chat(messages=messages, model=resolved_model)
+        except Exception as exc:
+            self._emit(
+                kind="llm_error",
+                agent_name=agent_name,
+                message=str(exc),
+                data={"model": resolved_model},
+            )
+            raise
+
+        self._emit(
+            kind="llm_response",
+            agent_name=agent_name,
+            message="received response",
+            data={"model": resolved_model, "content": response},
+        )
+        return response
 
     def chat(
         self,
@@ -104,9 +145,8 @@ class LLMClient:
         max_retries: int | None = None,
     ) -> StructuredResponseT:
         retry_limit = self.max_retries if max_retries is None else max_retries
-        prepared_messages = self._prepare_structured_messages(
-            messages=messages,
-            response_model=response_model,
+        prepared_messages = list(
+            self._prepare_structured_messages(messages=messages, response_model=response_model)
         )
 
         last_error: Exception | None = None
@@ -118,7 +158,19 @@ class LLMClient:
                     model=model,
                 )
                 return response_model.model_validate_json(response_text)
-            except (ValidationError, RuntimeError, ValueError) as exc:
+            except (ValidationError, ValueError) as exc:
+                last_error = exc
+                prepared_messages = prepared_messages + [
+                    {"role": "assistant", "content": response_text},
+                    {
+                        "role": "user",
+                        "content": (
+                            f"Your response was invalid. Error: {exc}\n"
+                            "Please respond again with valid JSON that matches the schema."
+                        ),
+                    },
+                ]
+            except RuntimeError as exc:
                 last_error = exc
 
         raise RuntimeError("structured llm request failed after retries") from last_error
