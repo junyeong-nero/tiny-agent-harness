@@ -1,22 +1,25 @@
 from tiny_agent_harness.agents.shared import format_tool_catalog
 from tiny_agent_harness.providers import ChatMessage
-from tiny_agent_harness.schemas import AppConfig, Task, ToolRequirement
+from tiny_agent_harness.schemas import AppConfig, ExecutorInput, ToolSpec
 
 
-def build_initial_messages(
-    task: Task,
+def build_messages(
+    task: ExecutorInput,
     config: AppConfig,
-    tool_requirements: list[ToolRequirement],
+    tool_specs: list[ToolSpec],
 ) -> list[ChatMessage]:
-    tool_catalog = format_tool_catalog(tool_requirements)
+    tool_catalog = format_tool_catalog(tool_specs)
 
     return [
         {
             "role": "system",
             "content": (
-                "You are the executor agent. Either choose one tool call or return a final result. "
-                "Use status='tool_call' when a tool is needed. Use status='completed' or "
-                "status='failed' only when returning a final answer."
+                "You are the executor agent. Either choose one tool call or return a final result.\n"
+                "Use status='tool_call' when a tool is needed.\n"
+                "Use status='completed' or status='failed' only when returning a final answer.\n\n"
+                "If the task context is 'conversational' or no tools are listed, "
+                "do NOT call any tools. Respond directly with status='completed' "
+                "and put your reply in the summary field."
             ),
         },
         {
