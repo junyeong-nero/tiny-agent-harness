@@ -1,7 +1,7 @@
 # tiny-agent-harness
 
 `tiny-agent-harness` is a small, inspectable multi-agent runtime for a fixed
-`orchestrator -> executor -> reviewer` loop over a local workspace.
+`orchestrator -> worker -> reviewer` loop over a local workspace.
 
 It is intentionally simple:
 
@@ -34,7 +34,7 @@ The current codebase includes:
 The harness always uses three agents in a specific loop:
 
 1. `orchestrator`: Analyzes the goal and plans or replies.
-2. `executor`: Performs the actual workspace operations.
+2. `worker`: Performs the actual workspace operations.
 3. `reviewer`: Verifies the outcome against the original user prompt.
 
 High-level flow:
@@ -45,7 +45,7 @@ user prompt
   -> TinyHarness.run()
   -> run_harness()
   -> orchestrator
-  -> executor (delegated by orchestrator)
+  -> worker (delegated by orchestrator)
   -> reviewer
   -> OutputChannel + listener events
 ```
@@ -58,9 +58,9 @@ graph TD
     IC --> TH["TinyHarness.run()"]
     TH --> RH["run_harness()"]
     RH --> O["Orchestrator"]
-    O -->|delegate task| E["Executor"]
+    O -->|delegate task| E["Worker"]
     O -->|direct reply| R["Reviewer"]
-    E -->|executor result| R["Reviewer"]
+    E -->|worker result| R["Reviewer"]
     R -->|approve or retry| S["RunState Update"]
     S --> OC["OutputChannel"]
     S --> LC["Listener Events"]
@@ -72,12 +72,12 @@ graph TD
   - receives the overall goal as `RunState`
   - may return a direct reply for simple conversational inputs
   - may inspect the workspace with read-only tools (`list_files`, `search`)
-  - may delegate an `ExecutorInput` task to the executor
-- `executor`
+  - may delegate a `WorkerInput` task to the worker
+- `worker`
   - receives a concrete task plus an allowed tool subset
   - loops through tool calls until it returns `completed` or `failed`
 - `reviewer`
-  - evaluates the reply or executor result against the original prompt
+  - evaluates the reply or worker result against the original prompt
   - may inspect the workspace using allowed tools before deciding `approve` or `retry`
 
 ### Runtime loop
@@ -87,7 +87,7 @@ graph TD
 - the reviewer returns `approve`, or
 - `runtime.orchestrator_max_retries` is exhausted
 
-Each agent loop is bounded separately by tool step limits in the active config. If the orchestrator fails to produce a valid delegation after its tool loop, the runtime creates a fallback executor task from the original user prompt.
+Each agent loop is bounded separately by tool step limits in the active config. If the orchestrator fails to produce a valid delegation after its tool loop, the runtime creates a fallback worker task from the original user prompt.
 
 ## Repository Layout
 
@@ -97,7 +97,7 @@ src/
     cli.py                     # Packaged CLI entrypoint
     agents/                    # Agent-specific logic and prompts
       orchestrator/
-      executor/
+      worker/
       reviewer/
     channels/                  # I/O and event channels
     llm/                       # LLM client and provider factory
@@ -122,7 +122,7 @@ provider: openai
 models:
   default: gpt-4o-mini
   orchestrator: gpt-4o-mini
-  executor: gpt-4o-mini
+  worker: gpt-4o-mini
   reviewer: gpt-4o-mini
 
 llm:
@@ -131,7 +131,7 @@ llm:
 runtime:
   orchestrator_max_retries: 3
   orchestrator_max_tool_steps: 10
-  executor_max_tool_steps: 10
+  worker_max_tool_steps: 10
   reviewer_max_tool_steps: 10
 ```
 
@@ -140,7 +140,7 @@ runtime:
 Tool permissions are defined in the active config, with some internal hard-coding:
 
 - **Orchestrator:** Hard-limited in code to `list_files` and `search` for safety.
-- **Executor:** Uses the subset of tools passed by the orchestrator in `ExecutorInput.allowed_tools`.
+- **Worker:** Uses the subset of tools passed by the orchestrator in `WorkerInput.allowed_tools`.
 - **Reviewer:** Uses the tools explicitly granted in the active config.
 
 ## Running Locally
