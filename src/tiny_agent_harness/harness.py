@@ -58,7 +58,7 @@ def run_harness(
         orchestration = OrchestrationResult(
             reply=execution.reply,
             task=execution.task,
-            executor_result=execution.executor_result,
+            worker_result=execution.worker_result,
             review_result=review_result,
             done=done,
         )
@@ -69,7 +69,7 @@ def run_harness(
         state = state.model_copy(
             update={
                 "current_task": execution.task or state.current_task,
-                "last_executor_result": execution.executor_result or state.last_executor_result,
+                "last_worker_result": execution.worker_result or state.last_worker_result,
                 "last_review_result": review_result,
                 "step_count": state.step_count + 1,
             }
@@ -78,7 +78,7 @@ def run_harness(
     state = state.model_copy(
         update={
             "current_task": orchestration.task,
-            "last_executor_result": orchestration.executor_result,
+            "last_worker_result": orchestration.worker_result,
             "last_review_result": orchestration.review_result,
             "done": orchestration.done,
             "step_count": state.step_count + 1,
@@ -92,7 +92,7 @@ def run_harness(
         summary = (
             f"prompt='{state.task}' "
             f"task='{orchestration.task.id}' "
-            f"executor_status='{orchestration.executor_result.status}' "
+            f"worker_status='{orchestration.worker_result.status}' "
             f"review_decision='{orchestration.review_result.decision}'"
         )
     result = RunResult(status=status, summary=summary)
@@ -105,7 +105,9 @@ def run_harness(
         )
     )
     kind = "run_completed" if orchestration.done else "run_failed"
-    ch_listener.call(ListenerEvent(kind=kind, message=f"run finished with status={status}"))
+    ch_listener.call(
+        ListenerEvent(kind=kind, message=f"run finished with status={status}")
+    )
 
     return state, result
 

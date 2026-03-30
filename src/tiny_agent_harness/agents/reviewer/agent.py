@@ -54,7 +54,7 @@ def reviewer_agent(
         original_prompt=original_prompt,
         reply=execution.reply,
         task=execution.task,
-        executor_result=execution.executor_result,
+        worker_result=execution.worker_result,
     )
 
     if llm_client is not None and tool_caller is not None:
@@ -83,7 +83,7 @@ def reviewer_agent(
             decision="approve",
             feedback=f"reviewer mock approved direct reply with model {config.models.reviewer}",
         )
-    if request.executor_result.status != "completed":
+    if request.worker_result.status != "completed":
         return ReviewerOutput(
             decision="retry",
             feedback=(

@@ -3,7 +3,15 @@ from pathlib import Path
 from typing import Any
 
 import yaml
-from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator, model_validator
+from pydantic import (
+    AliasChoices,
+    BaseModel,
+    ConfigDict,
+    Field,
+    ValidationError,
+    field_validator,
+    model_validator,
+)
 
 
 class ModelsConfig(BaseModel):
@@ -11,10 +19,13 @@ class ModelsConfig(BaseModel):
 
     default: str
     orchestrator: str | None = None
-    executor: str | None = None
+    worker: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("worker", "executor"),
+    )
     reviewer: str | None = None
 
-    @field_validator("default", "orchestrator", "executor", "reviewer", mode="before")
+    @field_validator("default", "orchestrator", "worker", "reviewer", mode="before")
     @classmethod
     def validate_model_name(cls, value: Any) -> Any:
         if value is None:
@@ -26,7 +37,7 @@ class ModelsConfig(BaseModel):
     @model_validator(mode="after")
     def apply_defaults(self) -> "ModelsConfig":
         self.orchestrator = self.orchestrator or self.default
-        self.executor = self.executor or self.default
+        self.worker = self.worker or self.default
         self.reviewer = self.reviewer or self.default
         return self
 
@@ -49,13 +60,16 @@ class RuntimeConfig(BaseModel):
 
     orchestrator_max_retries: int = 3
     orchestrator_max_tool_steps: int = 2
-    executor_max_tool_steps: int = 3
+    worker_max_tool_steps: int = Field(
+        default=3,
+        validation_alias=AliasChoices("worker_max_tool_steps", "executor_max_tool_steps"),
+    )
     reviewer_max_tool_steps: int = 3
 
     @field_validator(
         "orchestrator_max_retries",
         "orchestrator_max_tool_steps",
-        "executor_max_tool_steps",
+        "worker_max_tool_steps",
         "reviewer_max_tool_steps",
         mode="before",
     )
@@ -70,14 +84,15 @@ class ToolPermissionsConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     orchestrator: list[str] = Field(default_factory=lambda: ["list_files", "search"])
-    executor: list[str] = Field(
-        default_factory=lambda: ["bash", "read_file", "search", "list_files", "apply_patch"]
+    worker: list[str] = Field(
+        default_factory=lambda: ["bash", "read_file", "search", "list_files", "apply_patch"],
+        validation_alias=AliasChoices("worker", "executor"),
     )
     reviewer: list[str] = Field(
         default_factory=lambda: ["read_file", "search", "list_files", "git_diff"]
     )
 
-    @field_validator("orchestrator", "executor", "reviewer", mode="before")
+    @field_validator("orchestrator", "worker", "reviewer", mode="before")
     @classmethod
     def validate_permissions(cls, value: Any) -> list[str]:
         if not isinstance(value, list):
@@ -93,7 +108,7 @@ class ToolPermissionsConfig(BaseModel):
     def as_actor_permissions(self) -> dict[str, list[str]]:
         return {
             "orchestrator": list(self.orchestrator),
-            "executor": list(self.executor),
+            "worker": list(self.worker),
             "reviewer": list(self.reviewer),
         }
 

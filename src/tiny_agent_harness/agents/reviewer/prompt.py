@@ -16,9 +16,9 @@ def _build_user_content(request: ReviewerInput, tool_catalog: str, config: AppCo
         f"task_id: {request.task.id}\n"
         f"task_instructions: {request.task.instructions}\n"
         f"task_context: {request.task.context}\n"
-        f"executor_status: {request.executor_result.status}\n"
-        f"executor_summary: {request.executor_result.summary}\n"
-        f"artifacts: {', '.join(request.executor_result.artifacts)}\n"
+        f"worker_status: {request.worker_result.status}\n"
+        f"worker_summary: {request.worker_result.summary}\n"
+        f"artifacts: {', '.join(request.worker_result.artifacts)}\n"
         f"tool_catalog:\n{tool_catalog}\n"
         f"configured_model: {config.models.reviewer}"
     )

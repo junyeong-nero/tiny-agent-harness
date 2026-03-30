@@ -1,10 +1,10 @@
 from tiny_agent_harness.agents.shared import format_tool_catalog
 from tiny_agent_harness.providers import ChatMessage
-from tiny_agent_harness.schemas import AppConfig, ExecutorInput, ToolSpec
+from tiny_agent_harness.schemas import AppConfig, ToolSpec, WorkerInput
 
 
 def build_messages(
-    task: ExecutorInput,
+    task: WorkerInput,
     config: AppConfig,
     tool_specs: list[ToolSpec],
 ) -> list[ChatMessage]:
@@ -14,7 +14,7 @@ def build_messages(
         {
             "role": "system",
             "content": (
-                "You are the executor agent. Either choose one tool call or return a final result.\n"
+                "You are the worker agent. Either choose one tool call or return a final result.\n"
                 "Use status='tool_call' when a tool is needed.\n"
                 "Use status='completed' or status='failed' only when returning a final answer.\n\n"
                 "If the task context is 'conversational' or no tools are listed, "
@@ -30,7 +30,7 @@ def build_messages(
                 f"context: {task.context}\n"
                 f"allowed_tools: {', '.join(task.allowed_tools)}\n"
                 f"tool_catalog:\n{tool_catalog}\n"
-                f"configured_model: {config.models.executor}"
+                f"configured_model: {config.models.worker}"
             ),
         },
     ]

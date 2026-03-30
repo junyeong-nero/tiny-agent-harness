@@ -1,26 +1,26 @@
 from tiny_agent_harness.agents.base_agent import BaseAgent
 from tiny_agent_harness.agents.shared import SupportsStructuredLLM
 from tiny_agent_harness.agents.orchestrator.prompt import (
-    EXECUTOR_TOOLS,
+    WORKER_TOOLS,
     ORCHESTRATOR_TOOLS,
     build_messages,
 )
 from tiny_agent_harness.schemas import (
     AppConfig,
-    ExecutorInput,
     OrchestratorOutput,
     OrchestratorStep,
     RunState,
+    WorkerInput,
 )
 from tiny_agent_harness.tools import ToolCaller
 
 
-def _build_fallback_task(state: RunState, reason: str) -> ExecutorInput:
-    return ExecutorInput(
+def _build_fallback_task(state: RunState, reason: str) -> WorkerInput:
+    return WorkerInput(
         id=f"task-{state.step_count + 1}",
         instructions=state.task,
         context=f"Fallback task for goal '{state.task}'. reason={reason}",
-        allowed_tools=EXECUTOR_TOOLS,
+        allowed_tools=WORKER_TOOLS,
     )
 
 
@@ -44,7 +44,7 @@ class OrchestratorAgent(BaseAgent[RunState, OrchestratorStep]):
         )
 
     def run(self, state: RunState) -> OrchestratorOutput:
-        from tiny_agent_harness.agents.executor import executor_agent
+        from tiny_agent_harness.agents.worker import worker_agent
 
         step = super().run(state)
 
@@ -58,8 +58,8 @@ class OrchestratorAgent(BaseAgent[RunState, OrchestratorStep]):
                 state, "orchestrator exceeded maximum tool steps or returned delegate without task"
             )
 
-        executor_result = executor_agent(task, self.config, self.client, self.tool_caller)
-        return OrchestratorOutput(task=task, executor_result=executor_result)
+        worker_result = worker_agent(task, self.config, self.client, self.tool_caller)
+        return OrchestratorOutput(task=task, worker_result=worker_result)
 
 
 def orchestrator_agent(
@@ -68,7 +68,7 @@ def orchestrator_agent(
     llm_client: SupportsStructuredLLM | None = None,
     tool_caller: ToolCaller | None = None,
 ) -> OrchestratorOutput:
-    from tiny_agent_harness.agents.executor import executor_agent
+    from tiny_agent_harness.agents.worker import worker_agent
 
     if llm_client is not None and tool_caller is not None:
         return OrchestratorAgent(llm_client, tool_caller, config).run(state)
@@ -91,17 +91,17 @@ def orchestrator_agent(
         else:
             task = step.task
     else:
-        task = ExecutorInput(
+        task = WorkerInput(
             id=f"task-{state.step_count + 1}",
             instructions=state.task,
             context=(
                 f"Plan the next action for goal '{state.task}'. "
                 f"orchestrator model={config.models.orchestrator}"
             ),
-            allowed_tools=EXECUTOR_TOOLS,
+            allowed_tools=WORKER_TOOLS,
         )
 
-    executor_result = executor_agent(
+    worker_result = worker_agent(
         task, config, llm_client=llm_client, tool_caller=tool_caller
     )
-    return OrchestratorOutput(task=task, executor_result=executor_result)
+    return OrchestratorOutput(task=task, worker_result=worker_result)

@@ -4,7 +4,7 @@ from tiny_agent_harness.schemas import AppConfig, RunState, ToolSpec
 
 
 ORCHESTRATOR_TOOLS = ["list_files", "search"]
-EXECUTOR_TOOLS = ["bash", "read_file", "search", "list_files", "apply_patch"]
+WORKER_TOOLS = ["bash", "read_file", "search", "list_files", "apply_patch"]
 
 
 def build_messages(
@@ -32,12 +32,12 @@ def build_messages(
                 "Analyze the user's input and choose one of three actions:\n\n"
                 "1. status='reply' — the input is a greeting, question, or chitchat that does NOT\n"
                 "   require workspace operations. Put your response in the summary field.\n"
-                "   Do NOT delegate to the executor for conversational inputs.\n\n"
+                "   Do NOT delegate to the worker for conversational inputs.\n\n"
                 "2. status='tool_call' — inspect the workspace with a read-only tool before planning.\n"
                 "   Only do this when necessary. Do not repeat the same inspection.\n\n"
-                "3. status='delegate' — hand off a Task to the executor agent.\n"
+                "3. status='delegate' — hand off a Task to the worker agent.\n"
                 "   Set task.id, task.instructions, task.context, and task.allowed_tools\n"
-                f"   (subset of [{', '.join(EXECUTOR_TOOLS)}]).\n\n"
+                f"   (subset of [{', '.join(WORKER_TOOLS)}]).\n\n"
                 "If a previous attempt was rejected, use the reviewer feedback to improve the task."
             ),
         },

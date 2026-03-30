@@ -8,6 +8,9 @@ from tiny_agent_harness.schemas.config import (
 )
 from tiny_agent_harness.schemas.channels import InputRequest, OutputEvent, RunOutput
 from tiny_agent_harness.schemas.agents import (
+    WorkerInput,
+    WorkerOutput,
+    WorkerStep,
     ExecutorInput,
     ExecutorOutput,
     ExecutorStep,
@@ -26,6 +29,9 @@ from tiny_agent_harness.schemas.tools import ToolInput, ToolSpec
 
 __all__ = [
     "AppConfig",
+    "WorkerInput",
+    "WorkerOutput",
+    "WorkerStep",
     "ExecutorInput",
     "ExecutorOutput",
     "ExecutorStep",
