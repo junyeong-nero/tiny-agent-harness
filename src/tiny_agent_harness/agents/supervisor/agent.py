@@ -23,8 +23,8 @@ class SupervisorAgent:
     def __init__(
         self,
         config: AppConfig,
-        llm_client: SupportsStructuredLLM | None = None,
-        tool_caller: ToolCaller | None = None,
+        llm_client: SupportsStructuredLLM,
+        tool_caller: ToolCaller,
     ) -> None:
         self.config = config
         self.llm_client = llm_client
@@ -194,9 +194,9 @@ class SupervisorAgent:
 def supervisor_agent(
     state: RunState,
     config: AppConfig,
-    request: RunRequest | None = None,
-    llm_client: SupportsStructuredLLM | None = None,
-    tool_caller: ToolCaller | None = None,
+    request: RunRequest,
+    llm_client: SupportsStructuredLLM,
+    tool_caller: ToolCaller,
 ) -> RunOutput:
     return SupervisorAgent(
         config=config,

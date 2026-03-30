@@ -75,42 +75,8 @@ class PlannerAgent(BaseAgent[PlannerInput, PlannerStep]):
 def planner_agent(
     state: PlannerInput,
     config: AppConfig,
-    llm_client: SupportsStructuredLLM | None = None,
-    tool_caller: ToolCaller | None = None,
+    llm_client: SupportsStructuredLLM,
+    tool_caller: ToolCaller,
 ) -> PlannerOutput:
-    if llm_client is not None and tool_caller is not None:
-        return PlannerAgent(llm_client, tool_caller, config).run(state)
 
-    if llm_client is not None:
-        plan_step = llm_client.chat_structured(
-            messages=build_messages(state, config, []),
-            agent_name="planner",
-            response_model=PlannerStep,
-        )
-        if plan_step.status == "reply":
-            return PlannerOutput(plan=[plan_step])
-        if plan_step.status == "tool_call":
-            worker_subtask = _build_fallback_subtask(
-                state,
-                "planner requested a tool, but no tool registry was provided",
-            )
-        else:
-            worker_subtask = _select_worker_subtask(plan_step)
-            if worker_subtask is None:
-                worker_subtask = _build_fallback_subtask(
-                    state,
-                    "planner returned delegation without a task",
-                )
-        return PlannerOutput(plan=[plan_step], task=worker_subtask)
-
-    worker_subtask = WorkerInput(
-        id=f"task-{state.step_count + 1}",
-        kind="implement",
-        instructions=state.task,
-        context=(
-            f"Plan the next action for goal '{state.task}'. "
-            f"planner model={config.models.planner}"
-        ),
-        allowed_tools=WORKER_TOOLS,
-    )
-    return PlannerOutput(task=worker_subtask)
+    return PlannerAgent(llm_client, tool_caller, config).run(state)

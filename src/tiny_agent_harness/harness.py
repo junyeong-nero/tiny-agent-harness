@@ -21,9 +21,9 @@ from tiny_agent_harness.tools import ToolCaller, create_default_tool_caller
 def run_harness(
     request: RunRequest,
     config: AppConfig,
-    session_id: str | None = None,
-    llm_client: LLMClient | None = None,
-    tool_caller: ToolCaller | None = None,
+    session_id: str,
+    llm_client: LLMClient,
+    tool_caller: ToolCaller,
     listeners: ListenerChannel | None = None,
     output_handler: OutputChannel | None = None,
     input_channel: InputChannel | None = None,

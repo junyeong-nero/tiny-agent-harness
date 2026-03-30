@@ -47,34 +47,8 @@ class WorkerAgent(BaseAgent[WorkerInput, WorkerStep]):
 def worker_agent(
     subtask: WorkerInput,
     config: AppConfig,
-    llm_client: SupportsStructuredLLM | None = None,
-    tool_caller: ToolCaller | None = None,
+    llm_client: SupportsStructuredLLM,
+    tool_caller: ToolCaller,
 ) -> WorkerOutput:
-    if llm_client is not None and tool_caller is not None:
-        return WorkerAgent(llm_client, tool_caller, config).run(subtask)
 
-    if llm_client is not None:
-        worker_step = llm_client.chat_structured(
-            messages=build_messages(subtask, config, []),
-            agent_name="worker",
-            response_model=WorkerStep,
-        )
-        if worker_step.status == "tool_call":
-            return WorkerOutput(
-                status="failed",
-                summary="worker requested a tool, but no tool registry was provided",
-            )
-        return WorkerOutput(
-            status=worker_step.status,
-            summary=worker_step.summary,
-            artifacts=worker_step.artifacts,
-        )
-
-    return WorkerOutput(
-        status="completed",
-        summary=(
-            f"worker mock completed '{subtask.instructions}' "
-            f"with model {config.models.worker}"
-        ),
-        artifacts=[subtask.id],
-    )
+    return WorkerAgent(llm_client, tool_caller, config).run(subtask)
