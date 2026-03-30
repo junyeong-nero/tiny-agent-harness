@@ -14,6 +14,13 @@ from tiny_agent_harness.schemas import load_config
 
 
 class ConfigTestCase(unittest.TestCase):
+    def test_load_config_without_path_reads_packaged_default(self) -> None:
+        config = load_config()
+
+        self.assertEqual(config.provider, "openai")
+        self.assertEqual(config.models.default, "gpt-4o-mini")
+        self.assertEqual(config.runtime.orchestrator_max_tool_steps, 10)
+
     def test_load_config_reads_orchestrator_model_and_tool_permissions(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             config_path = Path(tmpdir) / "config.yaml"

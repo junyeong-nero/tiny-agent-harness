@@ -1,4 +1,5 @@
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -10,97 +11,96 @@ SRC_DIR = ROOT_DIR / "src"
 if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
-import cli
-from tiny_agent_harness.channels import InputChannel, OutputChannel
-from tiny_agent_harness.channels.listener import ListenerChannel
-from tiny_agent_harness.schemas import (
-    AppConfig,
-    LLMConfig,
-    ModelsConfig,
-    RunResult,
-    RunState,
-    RuntimeConfig,
-    ToolPermissionsConfig,
-)
+from tiny_agent_harness import cli
+from tiny_agent_harness.schemas import AppConfig, LLMConfig, ModelsConfig, RuntimeConfig, ToolPermissionsConfig
 
 
 class CLITestCase(unittest.TestCase):
-    def test_main_passes_provider_api_key_to_harness(self) -> None:
-        state = RunState(task="demo goal", done=True)
-        result = RunResult(status="completed", summary="demo summary")
+    def test_main_uses_packaged_config_and_cwd_by_default(self) -> None:
         config = AppConfig(
-            provider="openrouter",
+            provider="openai",
             models=ModelsConfig(default="demo-model"),
             llm=LLMConfig(),
             runtime=RuntimeConfig(),
             tools=ToolPermissionsConfig(),
         )
+        harness = self._make_harness_double()
 
         with (
-            patch.object(sys, "argv", ["main.py", "demo goal"]),
-            patch.dict("os.environ", {"OPENROUTER_API_KEY": "test-key"}, clear=True),
-            patch("cli.load_config", return_value=config) as load_config,
-            patch(
-                "cli.create_llm_client", return_value="llm-client"
-            ) as create_llm_client,
-            patch("cli.run_harness", return_value=(state, result)) as run_harness,
+            tempfile.TemporaryDirectory() as tmpdir,
+            patch.object(cli.Path, "cwd", return_value=Path(tmpdir)),
+            patch("tiny_agent_harness.cli.load_config", return_value=config) as load_config,
+            patch("tiny_agent_harness.cli.TinyHarness", return_value=harness) as tiny_harness,
+            patch("builtins.input", side_effect=["quit"]),
         ):
-            cli.main()
+            exit_code = cli.main([])
 
-        load_config.assert_called_once()
-        create_llm_client.assert_called_once_with(config, api_key="test-key")
-        run_harness.assert_called_once()
-        _, kwargs = run_harness.call_args
-        self.assertEqual(kwargs["llm_client"], "llm-client")
-        self.assertIsInstance(kwargs["listeners"], ListenerChannel)
-        self.assertIsInstance(kwargs["output_handler"], OutputChannel)
-        self.assertIsInstance(kwargs["input_channel"], InputChannel)
-        self.assertFalse(kwargs["input_channel"].is_empty())
-        self.assertEqual(kwargs["input_channel"].dequeue().payload.goal, "demo goal")
+        self.assertEqual(exit_code, 0)
+        load_config.assert_called_once_with(None)
+        tiny_harness.assert_called_once_with(
+            config=config,
+            workspace_root=str(Path(tmpdir).resolve()),
+        )
+        harness.ch_input.queue.assert_not_called()
+        harness.run.assert_not_called()
 
-    def test_main_raises_when_provider_api_key_is_missing(self) -> None:
+    def test_main_accepts_explicit_config_workspace_and_prompt(self) -> None:
         config = AppConfig(
-            provider="openrouter",
+            provider="openai",
             models=ModelsConfig(default="demo-model"),
             llm=LLMConfig(),
             runtime=RuntimeConfig(),
             tools=ToolPermissionsConfig(),
         )
+        harness = self._make_harness_double()
 
         with (
-            patch.object(sys, "argv", ["main.py", "demo goal"]),
-            patch.dict("os.environ", {}, clear=True),
-            patch("cli.load_config", return_value=config),
+            tempfile.TemporaryDirectory() as tmpdir,
+            patch("tiny_agent_harness.cli.load_config", return_value=config) as load_config,
+            patch("tiny_agent_harness.cli.TinyHarness", return_value=harness) as tiny_harness,
         ):
-            with self.assertRaisesRegex(
-                ValueError, "missing API key for provider: openrouter"
-            ):
-                cli.main()
+            workspace = Path(tmpdir) / "workspace"
+            workspace.mkdir()
+            config_path = Path(tmpdir) / "custom-config.yaml"
+            config_path.write_text("provider: openai\nmodels:\n  default: demo-model\n", encoding="utf-8")
+            exit_code = cli.main(
+                [
+                    "--config",
+                    str(config_path),
+                    "--workspace",
+                    str(workspace),
+                    "inspect",
+                    "repo",
+                ]
+            )
 
-    def test_main_runs_interactively_until_quit(self) -> None:
-        state = RunState(task="demo goal", done=True)
-        result = RunResult(status="completed", summary="demo summary")
-        config = AppConfig(
-            provider="openrouter",
-            models=ModelsConfig(default="demo-model"),
-            llm=LLMConfig(),
-            runtime=RuntimeConfig(),
-            tools=ToolPermissionsConfig(),
+        self.assertEqual(exit_code, 0)
+        load_config.assert_called_once_with(config_path)
+        tiny_harness.assert_called_once_with(
+            config=config,
+            workspace_root=str(workspace.resolve()),
         )
+        harness.ch_input.queue.assert_called_once_with("inspect repo")
+        harness.run.assert_called_once()
 
-        with (
-            patch.object(sys, "argv", ["main.py"]),
-            patch.dict("os.environ", {"OPENROUTER_API_KEY": "test-key"}, clear=True),
-            patch("cli.load_config", return_value=config),
-            patch("cli.create_llm_client", return_value="llm-client"),
-            patch("cli.run_harness", return_value=(state, result)) as run_harness,
-            patch("builtins.input", side_effect=["demo goal", "quit"]),
-        ):
-            cli.main()
+    @staticmethod
+    def _make_harness_double():
+        class _ChannelDouble:
+            def __init__(self) -> None:
+                self.add_channel = unittest.mock.Mock()
 
-        run_harness.assert_called_once()
-        _, kwargs = run_harness.call_args
-        self.assertEqual(kwargs["input_channel"].dequeue().payload.goal, "demo goal")
+        class _InputDouble:
+            def __init__(self) -> None:
+                self.queue = unittest.mock.Mock()
+
+        class _HarnessDouble:
+            def __init__(self) -> None:
+                self.ch_output = _ChannelDouble()
+                self.ch_listener = _ChannelDouble()
+                self.ch_input = _InputDouble()
+                self.run = unittest.mock.Mock()
+
+        return _HarnessDouble()
 
 
 if __name__ == "__main__":
