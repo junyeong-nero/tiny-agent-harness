@@ -7,10 +7,10 @@ from tiny_agent_harness.providers import (
     OpenAIProvider,
     OpenRouterProvider,
 )
-from tiny_agent_harness.schemas import AppConfig
+from tiny_agent_harness.schemas import Config
 
 
-def create_provider(config: AppConfig, api_key: str | None = None) -> BaseProvider:
+def create_provider(config: Config, api_key: str | None = None) -> BaseProvider:
     provider_name = config.provider.strip().lower()
     default_model = config.models.default
 
@@ -41,7 +41,7 @@ def _resolve_api_key(provider_name: str) -> str:
 
 
 def create_llm_client(
-    config: AppConfig,
+    config: Config,
     max_retries: int | None = None,
     listeners: ListenerChannel | None = None,
 ) -> LLMClient:

@@ -5,7 +5,7 @@ from tiny_agent_harness.channels import (
     OutputChannel,
 )
 from tiny_agent_harness.channels.input import InputChannel
-from tiny_agent_harness.harness import TinyHarness, run_harness
+from tiny_agent_harness.harness import TinyHarness
 from tiny_agent_harness.llm import LLMClient, create_llm_client, create_provider
 from tiny_agent_harness.providers import (
     BaseProvider,

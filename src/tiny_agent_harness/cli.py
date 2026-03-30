@@ -6,7 +6,7 @@ from typing import Callable, Sequence
 from tiny_agent_harness.harness import TinyHarness
 from tiny_agent_harness.schemas import (
     ListenerEvent,
-    OutputEvent,
+    Event,
     load_config,
 )
 from tiny_agent_harness.utils import truncate
@@ -60,8 +60,8 @@ def console_listener(_: str, event: ListenerEvent) -> None:
     print(f"{agent}{event.message}".rstrip())
 
 
-def console_output_handler(_: str, event: OutputEvent) -> None:
-    print(event.payload.result.summary)
+def console_output_handler(_: str, event: Event) -> None:
+    print(event.payload.summary)
 
 
 def build_parser() -> argparse.ArgumentParser:

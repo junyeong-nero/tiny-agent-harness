@@ -1,7 +1,7 @@
 from itertools import count
 from tiny_agent_harness.channels.queue import IngressQueue
-from tiny_agent_harness.schemas import InputRequest
-from tiny_agent_harness.schemas.agents import RunRequest
+from tiny_agent_harness.schemas import Request
+from tiny_agent_harness.schemas.harness import HarnessInput
 
 
 class InputChannel:
@@ -17,14 +17,13 @@ class InputChannel:
     def is_empty(self) -> bool:
         return self.ingress_queue.is_empty()
 
-    def queue(self, query: str, session_id: str = "default") -> InputRequest:
-        request = InputRequest(
-            message_id=f"{self.message_prefix}-{next(self._counter)}",
+    def queue(self, query: str, session_id: str = "default") -> Request:
+        request = Request(
+            query=query,
             session_id=session_id,
-            payload=RunRequest(prompt=query),
         )
         self.ingress_queue.push(request)
         return request
 
-    def dequeue(self) -> InputRequest | None:
+    def dequeue(self) -> Request | None:
         return self.ingress_queue.receive()

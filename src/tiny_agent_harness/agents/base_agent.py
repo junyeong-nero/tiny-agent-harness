@@ -4,7 +4,7 @@ from pydantic import BaseModel
 
 from tiny_agent_harness.agents.shared import SupportsStructuredLLM, format_tool_result
 from tiny_agent_harness.providers import ChatMessage
-from tiny_agent_harness.schemas import AppConfig, ToolSpec
+from tiny_agent_harness.schemas import ToolSpec
 from tiny_agent_harness.tools import ToolCaller
 
 InputT = TypeVar("InputT", bound=BaseModel)
@@ -17,10 +17,7 @@ class BaseAgent(Generic[InputT, OutputT]):
         agent_name: str,
         llm_client: SupportsStructuredLLM,
         tool_caller: ToolCaller,
-        config: AppConfig,
-        message_builder: Callable[
-            [InputT, AppConfig, list[ToolSpec]], list[ChatMessage]
-        ],
+        message_builder: Callable[[InputT, list[ToolSpec]], list[ChatMessage]],
         input_schema: type[InputT],
         output_schema: type[OutputT],
         max_tool_steps: int = 3,
@@ -29,7 +26,6 @@ class BaseAgent(Generic[InputT, OutputT]):
         self.agent_name = agent_name
         self.client = llm_client
         self.tool_caller = tool_caller
-        self.config = config
         self.message_builder = message_builder
         self.input_schema = input_schema
         self.output_schema = output_schema
@@ -46,7 +42,7 @@ class BaseAgent(Generic[InputT, OutputT]):
             actor=self.agent_name,
             allowed_tool_names=allowed,
         )
-        messages = self.message_builder(data, self.config, tool_specs)
+        messages = self.message_builder(data, tool_specs)
 
         result: OutputT | None = None
         for _ in range(self.max_tool_steps):

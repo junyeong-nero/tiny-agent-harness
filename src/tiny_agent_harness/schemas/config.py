@@ -70,7 +70,9 @@ class LLMConfig(BaseModel):
     @classmethod
     def validate_max_retries(cls, value: Any) -> int:
         if not isinstance(value, int) or value < 0:
-            raise ValueError("max_retries must be an integer greater than or equal to 0")
+            raise ValueError(
+                "max_retries must be an integer greater than or equal to 0"
+            )
         return value
 
 
@@ -79,16 +81,22 @@ class RuntimeConfig(BaseModel):
 
     supervisor_max_retries: int = Field(
         default=3,
-        validation_alias=AliasChoices("supervisor_max_retries", "orchestrator_max_retries"),
+        validation_alias=AliasChoices(
+            "supervisor_max_retries", "orchestrator_max_retries"
+        ),
     )
     planner_max_tool_steps: int = Field(
         default=2,
-        validation_alias=AliasChoices("planner_max_tool_steps", "orchestrator_max_tool_steps"),
+        validation_alias=AliasChoices(
+            "planner_max_tool_steps", "orchestrator_max_tool_steps"
+        ),
     )
     explorer_max_tool_steps: int = 3
     worker_max_tool_steps: int = Field(
         default=3,
-        validation_alias=AliasChoices("worker_max_tool_steps", "executor_max_tool_steps"),
+        validation_alias=AliasChoices(
+            "worker_max_tool_steps", "executor_max_tool_steps"
+        ),
     )
     reviewer_max_tool_steps: int = 3
 
@@ -127,7 +135,13 @@ class ToolPermissionsConfig(BaseModel):
         default_factory=lambda: ["list_files", "search", "read_file", "git_diff"]
     )
     worker: list[str] = Field(
-        default_factory=lambda: ["bash", "read_file", "search", "list_files", "apply_patch"],
+        default_factory=lambda: [
+            "bash",
+            "read_file",
+            "search",
+            "list_files",
+            "apply_patch",
+        ],
         validation_alias=AliasChoices("worker", "executor"),
     )
     reviewer: list[str] = Field(
@@ -138,7 +152,9 @@ class ToolPermissionsConfig(BaseModel):
     def orchestrator(self) -> list[str]:
         return list(self.planner)
 
-    @field_validator("supervisor", "planner", "explorer", "worker", "reviewer", mode="before")
+    @field_validator(
+        "supervisor", "planner", "explorer", "worker", "reviewer", mode="before"
+    )
     @classmethod
     def validate_permissions(cls, value: Any) -> list[str]:
         if not isinstance(value, list):
@@ -165,7 +181,7 @@ class ToolPermissionsConfig(BaseModel):
         }
 
 
-class AppConfig(BaseModel):
+class Config(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     provider: str
@@ -184,9 +200,11 @@ class AppConfig(BaseModel):
 
 def _load_raw_config(path: str | Path | None) -> dict[str, Any]:
     if path is None:
-        with files("tiny_agent_harness").joinpath("default_config.yaml").open(
-            "r", encoding="utf-8"
-        ) as f:
+        with (
+            files("tiny_agent_harness")
+            .joinpath("default_config.yaml")
+            .open("r", encoding="utf-8") as f
+        ):
             raw = yaml.safe_load(f) or {}
         if not isinstance(raw, dict):
             raise ValueError("config root must be a mapping")
@@ -204,10 +222,10 @@ def _load_raw_config(path: str | Path | None) -> dict[str, Any]:
     return raw
 
 
-def load_config(path: str | Path | None = None) -> AppConfig:
+def load_config(path: str | Path | None = None) -> Config:
     raw = _load_raw_config(path)
 
     try:
-        return AppConfig.model_validate(raw)
+        return Config.model_validate(raw)
     except ValidationError as exc:
         raise ValueError(f"invalid config: {exc}") from exc
