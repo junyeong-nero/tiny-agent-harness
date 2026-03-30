@@ -1,6 +1,6 @@
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from tiny_agent_harness.schemas.tools import ToolInput
 
@@ -18,26 +18,44 @@ class RunResult(BaseModel):
     summary: str
 
 
-class WorkerInput(BaseModel):
-    """Task definition passed from orchestrator to worker."""
+class WorkerTask(BaseModel):
+    """Task definition passed from planner to worker."""
 
     model_config = ConfigDict(extra="forbid")
 
     id: str
+    kind: Literal["explore", "implement", "verify"] = "implement"
     instructions: str
     context: str
     allowed_tools: list[str] = Field(default_factory=list)
+    depends_on: list[str] = Field(default_factory=list)
 
 
-class OrchestratorStep(BaseModel):
-    """Structured LLM output during orchestrator's internal loop."""
+class PlannerStep(BaseModel):
+    """Structured LLM output during planner's internal loop."""
 
     model_config = ConfigDict(extra="forbid")
 
-    status: Literal["tool_call", "delegate", "reply"]
+    status: Literal[
+        "tool_call",
+        "delegate",
+        "delegate_explorer",
+        "delegate_worker",
+        "reply",
+        "complete_plan",
+    ]
     summary: str
     tool_call: ToolInput | None = None
-    task: WorkerInput | None = None
+    subtasks: list[WorkerTask] = Field(default_factory=list)
+    task: WorkerTask | None = None
+
+    @model_validator(mode="after")
+    def normalize_subtasks(self) -> "PlannerStep":
+        if self.task is not None and not self.subtasks:
+            self.subtasks = [self.task]
+        if self.task is None and self.subtasks:
+            self.task = self.subtasks[0]
+        return self
 
 
 class WorkerStep(BaseModel):
@@ -59,6 +77,8 @@ class WorkerOutput(BaseModel):
     status: Literal["completed", "failed"]
     summary: str
     artifacts: list[str] = Field(default_factory=list)
+    changed_files: list[str] = Field(default_factory=list)
+    test_results: list[str] = Field(default_factory=list)
 
 
 class ReviewerInput(BaseModel):
@@ -68,7 +88,7 @@ class ReviewerInput(BaseModel):
 
     original_prompt: str
     reply: str | None = None
-    task: WorkerInput | None = None
+    task: WorkerTask | None = None
     worker_result: WorkerOutput | None = None
 
 
@@ -97,18 +117,24 @@ class RunState(BaseModel):
 
     task: str
     step_count: int = 0
-    current_task: WorkerInput | None = None
+    current_task: WorkerTask | None = None
     last_worker_result: WorkerOutput | None = None
     last_review_result: ReviewerOutput | None = None
+    plan: list[PlannerStep] = Field(default_factory=list)
+    completed_subtasks: list[WorkerTask] = Field(default_factory=list)
+    exploration_notes: list[str] = Field(default_factory=list)
+    worker_results: list[WorkerOutput] = Field(default_factory=list)
+    review_cycles: int = 0
     done: bool = False
 
 
-class OrchestratorOutput(BaseModel):
-    """Result returned by the orchestrator agent (task + worker result, or a direct reply)."""
+class PlannerOutput(BaseModel):
+    """Result returned by the planner agent (task + worker result, or a direct reply)."""
 
     model_config = ConfigDict(extra="forbid")
 
-    task: WorkerInput | None = None
+    plan: list[PlannerStep] = Field(default_factory=list)
+    task: WorkerTask | None = None
     worker_result: WorkerOutput | None = None
     reply: str | None = None
 
@@ -118,14 +144,20 @@ class OrchestrationResult(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
+    plan: list[PlannerStep] = Field(default_factory=list)
     reply: str | None = None
-    task: WorkerInput | None = None
+    task: WorkerTask | None = None
     worker_result: WorkerOutput | None = None
     review_result: ReviewerOutput
     done: bool
 
 
 # Backward-compatible aliases for older imports.
+Subtask = WorkerTask
+WorkerInput = WorkerTask
 ExecutorInput = WorkerInput
 ExecutorStep = WorkerStep
 ExecutorOutput = WorkerOutput
+PlanStep = PlannerStep
+OrchestratorStep = PlannerStep
+OrchestratorOutput = PlannerOutput

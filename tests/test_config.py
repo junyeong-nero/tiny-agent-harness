@@ -19,9 +19,12 @@ class ConfigTestCase(unittest.TestCase):
 
         self.assertEqual(config.provider, "openai")
         self.assertEqual(config.models.default, "gpt-4o-mini")
+        self.assertEqual(config.models.planner, "gpt-4o-mini")
+        self.assertEqual(config.models.orchestrator, "gpt-4o-mini")
+        self.assertEqual(config.runtime.planner_max_tool_steps, 10)
         self.assertEqual(config.runtime.orchestrator_max_tool_steps, 10)
 
-    def test_load_config_reads_orchestrator_model_and_tool_permissions(self) -> None:
+    def test_load_config_reads_legacy_orchestrator_keys_into_planner_config(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             config_path = Path(tmpdir) / "config.yaml"
             config_path.write_text(
@@ -49,17 +52,47 @@ class ConfigTestCase(unittest.TestCase):
 
             config = load_config(config_path)
 
+            self.assertEqual(config.models.planner, "demo-orchestrator")
             self.assertEqual(config.models.orchestrator, "demo-orchestrator")
             self.assertEqual(config.llm.max_retries, 4)
+            self.assertEqual(config.runtime.planner_max_tool_steps, 5)
             self.assertEqual(config.runtime.orchestrator_max_tool_steps, 5)
-            self.assertEqual(
-                config.tools.as_actor_permissions(),
-                {
-                    "orchestrator": ["search"],
-                    "worker": ["bash"],
-                    "reviewer": ["git_diff"],
-                },
+            permissions = config.tools.as_actor_permissions()
+            self.assertEqual(permissions["planner"], ["search"])
+            self.assertEqual(permissions["orchestrator"], ["search"])
+            self.assertEqual(permissions["worker"], ["bash"])
+            self.assertEqual(permissions["reviewer"], ["git_diff"])
+
+    def test_load_config_reads_planner_keys_and_keeps_legacy_aliases(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config_path = Path(tmpdir) / "config.yaml"
+            config_path.write_text(
+                "\n".join(
+                    [
+                        "provider: openai",
+                        "models:",
+                        "  default: demo-default",
+                        "  planner: demo-planner",
+                        "runtime:",
+                        "  planner_max_tool_steps: 7",
+                        "tools:",
+                        "  planner:",
+                        "    - list_files",
+                        "    - search",
+                    ]
+                ),
+                encoding="utf-8",
             )
+
+            config = load_config(config_path)
+
+            self.assertEqual(config.models.planner, "demo-planner")
+            self.assertEqual(config.models.orchestrator, "demo-planner")
+            self.assertEqual(config.runtime.planner_max_tool_steps, 7)
+            self.assertEqual(config.runtime.orchestrator_max_tool_steps, 7)
+            permissions = config.tools.as_actor_permissions()
+            self.assertEqual(permissions["planner"], ["list_files", "search"])
+            self.assertEqual(permissions["orchestrator"], ["list_files", "search"])
 
 
 if __name__ == "__main__":

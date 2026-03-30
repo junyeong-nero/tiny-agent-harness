@@ -13,15 +13,14 @@ from tiny_agent_harness.channels import InputChannel, OutputChannel
 from tiny_agent_harness.channels.listener import ListenerChannel
 from tiny_agent_harness.harness import run_harness
 from tiny_agent_harness.schemas import (
-    ExecutorInput,
     OutputEvent,
-    OrchestratorOutput,
-    ReviewerInput,
-    ReviewResult,
+    PlannerStep,
     RunRequest,
-    OrchestratorInput,
-    ToolCall,
-    ToolRequirement,
+    ReviewerStep,
+    ToolInput,
+    ToolSpec,
+    WorkerStep,
+    WorkerTask,
     load_config,
 )
 from tiny_agent_harness.tools import ToolCaller
@@ -37,11 +36,11 @@ class FakeStructuredLLM:
     ):
         self.calls.append((agent_name, response_model))
 
-        if response_model is OrchestratorOutput:
-            return OrchestratorOutput(
+        if response_model is PlannerStep:
+            return PlannerStep(
                 status="delegate",
                 summary="llm orchestrator task ready",
-                task=OrchestratorInput(
+                task=WorkerTask(
                     id="task-llm-1",
                     instructions="llm task",
                     context="llm context",
@@ -49,15 +48,15 @@ class FakeStructuredLLM:
                 ),
             )
 
-        if response_model is ExecutorInput:
-            return ExecutorInput(
+        if response_model is WorkerStep:
+            return WorkerStep(
                 status="completed",
-                summary="llm executor result",
+                summary="llm worker result",
                 artifacts=["artifact-1"],
             )
 
-        if response_model is ReviewerInput:
-            return ReviewerInput(
+        if response_model is ReviewerStep:
+            return ReviewerStep(
                 status="completed",
                 summary="llm reviewer approved",
                 decision="approve",
@@ -77,8 +76,8 @@ class RuntimeTestCase(unittest.TestCase):
         self.assertIsNotNone(state.current_task)
         self.assertEqual(state.current_task.id, "task-1")
         self.assertEqual(state.current_task.instructions, "demo goal")
-        self.assertIsNotNone(state.last_executor_result)
-        self.assertEqual(state.last_executor_result.status, "completed")
+        self.assertIsNotNone(state.last_worker_result)
+        self.assertEqual(state.last_worker_result.status, "completed")
         self.assertIsNotNone(state.last_review_result)
         self.assertEqual(state.last_review_result.decision, "approve")
         self.assertTrue(state.done)
@@ -124,25 +123,25 @@ class RuntimeTestCase(unittest.TestCase):
         self.assertEqual(
             llm_client.calls,
             [
-                ("orchestrator", OrchestratorOutput),
-                ("executor", ExecutorInput),
-                ("reviewer", ReviewerInput),
+                ("planner", PlannerStep),
+                ("worker", WorkerStep),
+                ("reviewer", ReviewerStep),
             ],
         )
         self.assertEqual(state.current_task.id, "task-llm-1")
-        self.assertEqual(state.last_executor_result.summary, "llm executor result")
+        self.assertEqual(state.last_worker_result.summary, "llm worker result")
         self.assertEqual(state.last_review_result.feedback, "llm reviewer approved")
         self.assertEqual(result.status, "completed")
 
-    def test_run_harness_executes_executor_tool_calls_when_tools_are_available(
+    def test_run_harness_executes_worker_tool_calls_when_tools_are_available(
         self,
     ) -> None:
         class FakeReadFileTool:
             name = "read_file"
             description = "Read a file from the workspace."
 
-            def requirements(self) -> ToolRequirement:
-                return ToolRequirement(
+            def requirements(self) -> ToolSpec:
+                return ToolSpec(
                     name=self.name,
                     description=self.description,
                     arguments_schema={
@@ -162,18 +161,18 @@ class RuntimeTestCase(unittest.TestCase):
         class FakeToolAwareLLM:
             def __init__(self) -> None:
                 self.calls: list[tuple[str, type]] = []
-                self.executor_calls = 0
+                self.worker_calls = 0
 
             def chat_structured(
                 self, messages, agent_name, response_model, model=None, max_retries=None
             ):
                 self.calls.append((agent_name, response_model))
 
-                if response_model is OrchestratorOutput:
-                    return OrchestratorOutput(
+                if response_model is PlannerStep:
+                    return PlannerStep(
                         status="delegate",
                         summary="task is ready",
-                        task=OrchestratorInput(
+                        task=WorkerTask(
                             id="task-llm-1",
                             instructions="inspect a file",
                             context="read something first",
@@ -181,25 +180,25 @@ class RuntimeTestCase(unittest.TestCase):
                         ),
                     )
 
-                if response_model is ExecutorInput:
-                    self.executor_calls += 1
-                    if self.executor_calls == 1:
-                        return ExecutorInput(
+                if response_model is WorkerStep:
+                    self.worker_calls += 1
+                    if self.worker_calls == 1:
+                        return WorkerStep(
                             status="tool_call",
                             summary="need to read the file first",
-                            tool_call=ToolCall(
+                            tool_call=ToolInput(
                                 tool="read_file",
                                 arguments={"path": "README.md"},
                             ),
                         )
-                    return ExecutorInput(
+                    return WorkerStep(
                         status="completed",
                         summary="used the tool result and completed the task",
                         artifacts=["README.md"],
                     )
 
-                if response_model is ReviewerInput:
-                    return ReviewerInput(
+                if response_model is ReviewerStep:
+                    return ReviewerStep(
                         status="completed",
                         summary="looks good",
                         decision="approve",
@@ -213,7 +212,7 @@ class RuntimeTestCase(unittest.TestCase):
         read_file_tool = FakeReadFileTool()
         tool_caller = ToolCaller(
             tools={"read_file": read_file_tool},
-            actor_permissions={"executor": ["read_file"]},
+            actor_permissions={"worker": ["read_file"]},
         )
 
         state, result = run_harness(
@@ -224,8 +223,8 @@ class RuntimeTestCase(unittest.TestCase):
         )
 
         self.assertEqual(read_file_tool.last_path, "README.md")
-        self.assertEqual(state.last_executor_result.status, "completed")
-        self.assertEqual(state.last_executor_result.artifacts, ["README.md"])
+        self.assertEqual(state.last_worker_result.status, "completed")
+        self.assertEqual(state.last_worker_result.artifacts, ["README.md"])
         self.assertEqual(state.last_review_result.decision, "approve")
         self.assertEqual(result.status, "completed")
 
@@ -236,8 +235,8 @@ class RuntimeTestCase(unittest.TestCase):
             name = "git_diff"
             description = "Show git diff for selected paths."
 
-            def requirements(self) -> ToolRequirement:
-                return ToolRequirement(
+            def requirements(self) -> ToolSpec:
+                return ToolSpec(
                     name=self.name,
                     description=self.description,
                     arguments_schema={
@@ -267,37 +266,37 @@ class RuntimeTestCase(unittest.TestCase):
             ):
                 self.calls.append((agent_name, response_model))
 
-                if response_model is OrchestratorOutput:
-                    return OrchestratorOutput(
+                if response_model is PlannerStep:
+                    return PlannerStep(
                         status="delegate",
                         summary="task is ready",
-                        task=OrchestratorInput(
+                        task=WorkerTask(
                             id="task-llm-1",
                             instructions="review the README change",
-                            context="executor already changed README.md",
+                            context="worker already changed README.md",
                             allowed_tools=["read_file"],
                         ),
                     )
 
-                if response_model is ExecutorInput:
-                    return ExecutorInput(
+                if response_model is WorkerStep:
+                    return WorkerStep(
                         status="completed",
-                        summary="executor finished the README update",
+                        summary="worker finished the README update",
                         artifacts=["README.md"],
                     )
 
-                if response_model is ReviewerInput:
+                if response_model is ReviewerStep:
                     self.reviewer_calls += 1
                     if self.reviewer_calls == 1:
-                        return ReviewerInput(
+                        return ReviewerStep(
                             status="tool_call",
                             summary="need to inspect the diff first",
-                            tool_call=ToolCall(
+                            tool_call=ToolInput(
                                 tool="git_diff",
                                 arguments={"paths": ["README.md"]},
                             ),
                         )
-                    return ReviewerInput(
+                    return ReviewerStep(
                         status="completed",
                         summary="review completed after checking the diff",
                         decision="approve",
@@ -310,8 +309,8 @@ class RuntimeTestCase(unittest.TestCase):
         llm_client = FakeReviewerToolAwareLLM()
         git_diff_tool = FakeGitDiffTool()
         tool_caller = ToolCaller(
-            tools={"git_diff": git_diff_tool, "read_file": git_diff_tool},
-            actor_permissions={"executor": ["read_file"], "reviewer": ["git_diff"]},
+            tools={"git_diff": git_diff_tool},
+            actor_permissions={"reviewer": ["git_diff"]},
         )
 
         state, result = run_harness(
@@ -329,15 +328,15 @@ class RuntimeTestCase(unittest.TestCase):
         )
         self.assertEqual(result.status, "completed")
 
-    def test_run_harness_executes_orchestrator_read_only_tool_calls_when_available(
+    def test_run_harness_executes_planner_read_only_tool_calls_when_available(
         self,
     ) -> None:
         class FakeSearchTool:
             name = "search"
             description = "Search for strings in the workspace."
 
-            def requirements(self) -> ToolRequirement:
-                return ToolRequirement(
+            def requirements(self) -> ToolSpec:
+                return ToolSpec(
                     name=self.name,
                     description=self.description,
                     arguments_schema={
@@ -354,31 +353,31 @@ class RuntimeTestCase(unittest.TestCase):
                     content="README.md:1:tiny-agent-harness",
                 )
 
-        class FakeOrchestratorToolAwareLLM:
+        class FakePlannerToolAwareLLM:
             def __init__(self) -> None:
                 self.calls: list[tuple[str, type]] = []
-                self.orchestrator_calls = 0
+                self.planner_calls = 0
 
             def chat_structured(
                 self, messages, agent_name, response_model, model=None, max_retries=None
             ):
                 self.calls.append((agent_name, response_model))
 
-                if response_model is OrchestratorOutput:
-                    self.orchestrator_calls += 1
-                    if self.orchestrator_calls == 1:
-                        return OrchestratorOutput(
+                if response_model is PlannerStep:
+                    self.planner_calls += 1
+                    if self.planner_calls == 1:
+                        return PlannerStep(
                             status="tool_call",
                             summary="inspect the repo first",
-                            tool_call=ToolCall(
+                            tool_call=ToolInput(
                                 tool="search",
                                 arguments={"pattern": "tiny-agent-harness"},
                             ),
                         )
-                    return OrchestratorOutput(
+                    return PlannerStep(
                         status="delegate",
                         summary="task is ready after inspection",
-                        task=OrchestratorInput(
+                        task=WorkerTask(
                             id="task-llm-1",
                             instructions="update README based on the repo state",
                             context="README.md mentions tiny-agent-harness",
@@ -386,15 +385,15 @@ class RuntimeTestCase(unittest.TestCase):
                         ),
                     )
 
-                if response_model is ExecutorInput:
-                    return ExecutorInput(
+                if response_model is WorkerStep:
+                    return WorkerStep(
                         status="completed",
-                        summary="executor finished",
+                        summary="worker finished",
                         artifacts=["README.md"],
                     )
 
-                if response_model is ReviewerInput:
-                    return ReviewerInput(
+                if response_model is ReviewerStep:
+                    return ReviewerStep(
                         status="completed",
                         summary="review approved",
                         decision="approve",
@@ -404,11 +403,11 @@ class RuntimeTestCase(unittest.TestCase):
 
         config = load_config(ROOT_DIR / "config.yaml")
         request = RunRequest(prompt="demo goal")
-        llm_client = FakeOrchestratorToolAwareLLM()
+        llm_client = FakePlannerToolAwareLLM()
         search_tool = FakeSearchTool()
         tool_caller = ToolCaller(
-            tools={"search": search_tool, "read_file": search_tool},
-            actor_permissions={"orchestrator": ["search"], "executor": ["read_file"]},
+            tools={"search": search_tool},
+            actor_permissions={"planner": ["search"]},
         )
 
         state, result = run_harness(
@@ -425,13 +424,13 @@ class RuntimeTestCase(unittest.TestCase):
         self.assertEqual(state.last_review_result.decision, "approve")
         self.assertEqual(result.status, "completed")
 
-    def test_run_harness_falls_back_when_orchestrator_exceeds_tool_steps(self) -> None:
+    def test_run_harness_falls_back_when_planner_exceeds_tool_steps(self) -> None:
         class FakeSearchTool:
             name = "search"
             description = "Search for strings in the workspace."
 
-            def requirements(self) -> ToolRequirement:
-                return ToolRequirement(
+            def requirements(self) -> ToolSpec:
+                return ToolSpec(
                     name=self.name,
                     description=self.description,
                     arguments_schema={
@@ -447,29 +446,29 @@ class RuntimeTestCase(unittest.TestCase):
                     content="README.md:1:tiny-agent-harness",
                 )
 
-        class LoopingOrchestratorLLM:
+        class LoopingPlannerLLM:
             def chat_structured(
                 self, messages, agent_name, response_model, model=None, max_retries=None
             ):
-                if response_model is OrchestratorOutput:
-                    return OrchestratorOutput(
+                if response_model is PlannerStep:
+                    return PlannerStep(
                         status="tool_call",
                         summary="inspect again",
-                        tool_call=ToolCall(
+                        tool_call=ToolInput(
                             tool="search",
                             arguments={"pattern": "tiny-agent-harness"},
                         ),
                     )
 
-                if response_model is ExecutorInput:
-                    return ExecutorInput(
+                if response_model is WorkerStep:
+                    return WorkerStep(
                         status="completed",
-                        summary="executor completed fallback task",
+                        summary="worker completed fallback task",
                         artifacts=["README.md"],
                     )
 
-                if response_model is ReviewerInput:
-                    return ReviewerInput(
+                if response_model is ReviewerStep:
+                    return ReviewerStep(
                         status="completed",
                         summary="review approved fallback path",
                         decision="approve",
@@ -479,11 +478,11 @@ class RuntimeTestCase(unittest.TestCase):
 
         config = load_config(ROOT_DIR / "config.yaml")
         request = RunRequest(prompt="introduce yourself")
-        llm_client = LoopingOrchestratorLLM()
+        llm_client = LoopingPlannerLLM()
         search_tool = FakeSearchTool()
         tool_caller = ToolCaller(
             tools={"search": search_tool},
-            actor_permissions={"orchestrator": ["search"]},
+            actor_permissions={"planner": ["search"]},
         )
 
         state, result = run_harness(
@@ -494,10 +493,54 @@ class RuntimeTestCase(unittest.TestCase):
         )
 
         self.assertIn(
-            "orchestrator exceeded maximum tool steps", state.current_task.context
+            "planner exceeded maximum tool steps", state.current_task.context
         )
         self.assertEqual(state.current_task.instructions, "introduce yourself")
         self.assertEqual(state.last_review_result.decision, "approve")
+        self.assertEqual(result.status, "completed")
+
+    def test_run_harness_supports_planner_direct_reply_without_worker(self) -> None:
+        class FakeDirectReplyLLM:
+            def __init__(self) -> None:
+                self.calls: list[tuple[str, type]] = []
+
+            def chat_structured(
+                self, messages, agent_name, response_model, model=None, max_retries=None
+            ):
+                self.calls.append((agent_name, response_model))
+
+                if response_model is PlannerStep:
+                    return PlannerStep(
+                        status="reply",
+                        summary="hello from planner",
+                    )
+
+                if response_model is ReviewerStep:
+                    return ReviewerStep(
+                        status="completed",
+                        summary="direct reply is acceptable",
+                        decision="approve",
+                    )
+
+                raise AssertionError(f"unexpected response model: {response_model}")
+
+        config = load_config(ROOT_DIR / "config.yaml")
+        request = RunRequest(prompt="say hello")
+        llm_client = FakeDirectReplyLLM()
+
+        state, result = run_harness(request, config, llm_client=llm_client)
+
+        self.assertEqual(
+            llm_client.calls,
+            [
+                ("planner", PlannerStep),
+                ("reviewer", ReviewerStep),
+            ],
+        )
+        self.assertIsNone(state.current_task)
+        self.assertIsNone(state.last_worker_result)
+        self.assertEqual(state.last_review_result.decision, "approve")
+        self.assertTrue(state.done)
         self.assertEqual(result.status, "completed")
 
 

@@ -1,6 +1,6 @@
 import uuid
 
-from tiny_agent_harness.agents import orchestrator_agent, reviewer_agent
+from tiny_agent_harness.agents import planner_agent, reviewer_agent
 from tiny_agent_harness.channels.input import InputChannel
 from tiny_agent_harness.channels.listener import ListenerChannel
 from tiny_agent_harness.channels.output import OutputChannel
@@ -29,87 +29,120 @@ def run_harness(
     output_handler: OutputChannel | None = None,
     input_channel: InputChannel | None = None,
 ) -> tuple[RunState, RunResult]:
-    ch_listener = listeners or ListenerChannel()
-    ch_output = output_handler or OutputChannel()
-    actual_session_id = (
+    listener_channel = listeners or ListenerChannel()
+    output_channel = output_handler or OutputChannel()
+    resolved_session_id = (
         input_channel.dequeue().session_id
         if input_channel
         else session_id or str(uuid.uuid4())
     )
 
-    ch_listener.call(ListenerEvent(kind="run_started", message="run started"))
+    listener_channel.call(ListenerEvent(kind="run_started", message="run started"))
 
-    state = RunState(task=request.prompt)
-    orchestration: OrchestrationResult | None = None
+    run_state = RunState(task=request.prompt)
+    final_cycle_result: OrchestrationResult | None = None
 
-    for _ in range(config.runtime.orchestrator_max_retries):
-        execution = orchestrator_agent(
-            state, config, llm_client=llm_client, tool_caller=tool_caller
+    for _ in range(config.runtime.supervisor_max_retries):
+        planner_result = planner_agent(
+            run_state, config, llm_client=llm_client, tool_caller=tool_caller
         )
 
-        review_result = reviewer_agent(
+        review_output = reviewer_agent(
             request.prompt,
-            execution,
+            planner_result,
             config,
             llm_client=llm_client,
             tool_caller=tool_caller,
         )
-        done = review_result.decision == "approve"
-        orchestration = OrchestrationResult(
-            reply=execution.reply,
-            task=execution.task,
-            worker_result=execution.worker_result,
-            review_result=review_result,
-            done=done,
+        is_approved = review_output.decision == "approve"
+        final_cycle_result = OrchestrationResult(
+            plan=planner_result.plan,
+            reply=planner_result.reply,
+            task=planner_result.task,
+            worker_result=planner_result.worker_result,
+            review_result=review_output,
+            done=is_approved,
         )
 
-        if done:
+        if is_approved:
             break
 
-        state = state.model_copy(
+        completed_subtasks = list(run_state.completed_subtasks)
+        if planner_result.task is not None:
+            completed_subtasks.append(planner_result.task)
+
+        worker_outputs = list(run_state.worker_results)
+        if planner_result.worker_result is not None:
+            worker_outputs.append(planner_result.worker_result)
+
+        run_state = run_state.model_copy(
             update={
-                "current_task": execution.task or state.current_task,
-                "last_worker_result": execution.worker_result or state.last_worker_result,
-                "last_review_result": review_result,
-                "step_count": state.step_count + 1,
+                "current_task": planner_result.task or run_state.current_task,
+                "last_worker_result": planner_result.worker_result
+                or run_state.last_worker_result,
+                "last_review_result": review_output,
+                "plan": run_state.plan + planner_result.plan,
+                "completed_subtasks": completed_subtasks,
+                "worker_results": worker_outputs,
+                "review_cycles": run_state.review_cycles + 1,
+                "step_count": run_state.step_count + 1,
             }
         )
 
-    state = state.model_copy(
+    completed_subtasks = list(run_state.completed_subtasks)
+    if final_cycle_result.task is not None:
+        completed_subtasks.append(final_cycle_result.task)
+
+    worker_outputs = list(run_state.worker_results)
+    if final_cycle_result.worker_result is not None:
+        worker_outputs.append(final_cycle_result.worker_result)
+
+    run_state = run_state.model_copy(
         update={
-            "current_task": orchestration.task,
-            "last_worker_result": orchestration.worker_result,
-            "last_review_result": orchestration.review_result,
-            "done": orchestration.done,
-            "step_count": state.step_count + 1,
+            "current_task": final_cycle_result.task,
+            "last_worker_result": final_cycle_result.worker_result,
+            "last_review_result": final_cycle_result.review_result,
+            "plan": run_state.plan + final_cycle_result.plan,
+            "completed_subtasks": completed_subtasks,
+            "worker_results": worker_outputs,
+            "review_cycles": run_state.review_cycles + 1,
+            "done": final_cycle_result.done,
+            "step_count": run_state.step_count + 1,
         }
     )
 
-    status = "completed" if orchestration.done else "needs_retry"
-    if orchestration.reply is not None:
-        summary = f"prompt='{state.task}' reply='{orchestration.reply}' review_decision='{orchestration.review_result.decision}'"
+    status = "completed" if final_cycle_result.done else "needs_retry"
+    if final_cycle_result.reply is not None:
+        summary = (
+            f"prompt='{run_state.task}' "
+            f"reply='{final_cycle_result.reply}' "
+            f"review_decision='{final_cycle_result.review_result.decision}'"
+        )
     else:
         summary = (
-            f"prompt='{state.task}' "
-            f"task='{orchestration.task.id}' "
-            f"worker_status='{orchestration.worker_result.status}' "
-            f"review_decision='{orchestration.review_result.decision}'"
+            f"prompt='{run_state.task}' "
+            f"task='{final_cycle_result.task.id}' "
+            f"worker_status='{final_cycle_result.worker_result.status}' "
+            f"review_decision='{final_cycle_result.review_result.decision}'"
         )
-    result = RunResult(status=status, summary=summary)
+    run_result = RunResult(status=status, summary=summary)
 
-    ch_output.call(
+    output_channel.call(
         OutputEvent(
             event_id=str(uuid.uuid4()),
-            session_id=actual_session_id,
-            payload=RunOutput(request=request, state=state, result=result),
+            session_id=resolved_session_id,
+            payload=RunOutput(request=request, state=run_state, result=run_result),
         )
     )
-    kind = "run_completed" if orchestration.done else "run_failed"
-    ch_listener.call(
-        ListenerEvent(kind=kind, message=f"run finished with status={status}")
+    completion_event_kind = "run_completed" if final_cycle_result.done else "run_failed"
+    listener_channel.call(
+        ListenerEvent(
+            kind=completion_event_kind,
+            message=f"run finished with status={status}",
+        )
     )
 
-    return state, result
+    return run_state, run_result
 
 
 class TinyHarness:

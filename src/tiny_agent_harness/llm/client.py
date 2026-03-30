@@ -7,7 +7,14 @@ from tiny_agent_harness.providers import BaseProvider, ChatMessage
 from tiny_agent_harness.schemas import ListenerEvent, ModelsConfig
 
 
-AgentName = Literal["orchestrator", "worker", "reviewer"]
+AgentName = Literal[
+    "supervisor",
+    "planner",
+    "orchestrator",
+    "explorer",
+    "worker",
+    "reviewer",
+]
 StructuredResponseT = TypeVar("StructuredResponseT", bound=BaseModel)
 
 JSON_RESPONSE_INSTRUCTION = (
@@ -52,7 +59,10 @@ class LLMClient:
             return self.provider.resolve_model(model)
 
         model_by_agent = {
+            "supervisor": self.models.supervisor,
+            "planner": self.models.planner,
             "orchestrator": self.models.orchestrator,
+            "explorer": self.models.explorer,
             "worker": self.models.worker,
             "reviewer": self.models.reviewer,
         }

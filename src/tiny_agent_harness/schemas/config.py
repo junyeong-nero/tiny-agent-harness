@@ -18,14 +18,31 @@ class ModelsConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     default: str
-    orchestrator: str | None = None
+    supervisor: str | None = None
+    planner: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("planner", "orchestrator"),
+    )
+    explorer: str | None = None
     worker: str | None = Field(
         default=None,
         validation_alias=AliasChoices("worker", "executor"),
     )
     reviewer: str | None = None
 
-    @field_validator("default", "orchestrator", "worker", "reviewer", mode="before")
+    @property
+    def orchestrator(self) -> str | None:
+        return self.planner
+
+    @field_validator(
+        "default",
+        "supervisor",
+        "planner",
+        "explorer",
+        "worker",
+        "reviewer",
+        mode="before",
+    )
     @classmethod
     def validate_model_name(cls, value: Any) -> Any:
         if value is None:
@@ -36,7 +53,9 @@ class ModelsConfig(BaseModel):
 
     @model_validator(mode="after")
     def apply_defaults(self) -> "ModelsConfig":
-        self.orchestrator = self.orchestrator or self.default
+        self.supervisor = self.supervisor or self.default
+        self.planner = self.planner or self.default
+        self.explorer = self.explorer or self.default
         self.worker = self.worker or self.default
         self.reviewer = self.reviewer or self.default
         return self
@@ -58,17 +77,33 @@ class LLMConfig(BaseModel):
 class RuntimeConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    orchestrator_max_retries: int = 3
-    orchestrator_max_tool_steps: int = 2
+    supervisor_max_retries: int = Field(
+        default=3,
+        validation_alias=AliasChoices("supervisor_max_retries", "orchestrator_max_retries"),
+    )
+    planner_max_tool_steps: int = Field(
+        default=2,
+        validation_alias=AliasChoices("planner_max_tool_steps", "orchestrator_max_tool_steps"),
+    )
+    explorer_max_tool_steps: int = 3
     worker_max_tool_steps: int = Field(
         default=3,
         validation_alias=AliasChoices("worker_max_tool_steps", "executor_max_tool_steps"),
     )
     reviewer_max_tool_steps: int = 3
 
+    @property
+    def orchestrator_max_retries(self) -> int:
+        return self.supervisor_max_retries
+
+    @property
+    def orchestrator_max_tool_steps(self) -> int:
+        return self.planner_max_tool_steps
+
     @field_validator(
-        "orchestrator_max_retries",
-        "orchestrator_max_tool_steps",
+        "supervisor_max_retries",
+        "planner_max_tool_steps",
+        "explorer_max_tool_steps",
         "worker_max_tool_steps",
         "reviewer_max_tool_steps",
         mode="before",
@@ -83,7 +118,14 @@ class RuntimeConfig(BaseModel):
 class ToolPermissionsConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    orchestrator: list[str] = Field(default_factory=lambda: ["list_files", "search"])
+    supervisor: list[str] = Field(default_factory=list)
+    planner: list[str] = Field(
+        default_factory=lambda: ["list_files", "search"],
+        validation_alias=AliasChoices("planner", "orchestrator"),
+    )
+    explorer: list[str] = Field(
+        default_factory=lambda: ["list_files", "search", "read_file", "git_diff"]
+    )
     worker: list[str] = Field(
         default_factory=lambda: ["bash", "read_file", "search", "list_files", "apply_patch"],
         validation_alias=AliasChoices("worker", "executor"),
@@ -92,7 +134,11 @@ class ToolPermissionsConfig(BaseModel):
         default_factory=lambda: ["read_file", "search", "list_files", "git_diff"]
     )
 
-    @field_validator("orchestrator", "worker", "reviewer", mode="before")
+    @property
+    def orchestrator(self) -> list[str]:
+        return list(self.planner)
+
+    @field_validator("supervisor", "planner", "explorer", "worker", "reviewer", mode="before")
     @classmethod
     def validate_permissions(cls, value: Any) -> list[str]:
         if not isinstance(value, list):
@@ -106,9 +152,15 @@ class ToolPermissionsConfig(BaseModel):
         return normalized
 
     def as_actor_permissions(self) -> dict[str, list[str]]:
+        planner_permissions = list(self.planner)
+        worker_permissions = list(self.worker)
         return {
-            "orchestrator": list(self.orchestrator),
-            "worker": list(self.worker),
+            "supervisor": list(self.supervisor),
+            "planner": planner_permissions,
+            "orchestrator": planner_permissions,
+            "explorer": list(self.explorer),
+            "worker": worker_permissions,
+            "executor": worker_permissions,
             "reviewer": list(self.reviewer),
         }
 

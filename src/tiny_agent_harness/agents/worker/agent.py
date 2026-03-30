@@ -3,14 +3,14 @@ from tiny_agent_harness.agents.shared import SupportsStructuredLLM
 from tiny_agent_harness.agents.worker.prompt import build_messages
 from tiny_agent_harness.schemas import (
     AppConfig,
-    WorkerInput,
     WorkerOutput,
     WorkerStep,
+    WorkerTask,
 )
 from tiny_agent_harness.tools import ToolCaller
 
 
-class WorkerAgent(BaseAgent[WorkerInput, WorkerStep]):
+class WorkerAgent(BaseAgent[WorkerTask, WorkerStep]):
     def __init__(
         self,
         llm_client: SupportsStructuredLLM,
@@ -23,21 +23,21 @@ class WorkerAgent(BaseAgent[WorkerInput, WorkerStep]):
             tool_caller=tool_caller,
             config=config,
             message_builder=build_messages,
-            input_schema=WorkerInput,
+            input_schema=WorkerTask,
             output_schema=WorkerStep,
             max_tool_steps=config.runtime.worker_max_tool_steps,
         )
 
-    def _get_allowed_tools(self, data: WorkerInput) -> list[str]:
-        return data.allowed_tools
+    def _get_allowed_tools(self, subtask: WorkerTask) -> list[str]:
+        return subtask.allowed_tools
 
-    def run(self, task: WorkerInput) -> WorkerOutput:
-        step = super().run(task)
-        if step.status in {"completed", "failed"}:
+    def run(self, subtask: WorkerTask) -> WorkerOutput:
+        worker_step = super().run(subtask)
+        if worker_step.status in {"completed", "failed"}:
             return WorkerOutput(
-                status=step.status,
-                summary=step.summary,
-                artifacts=step.artifacts,
+                status=worker_step.status,
+                summary=worker_step.summary,
+                artifacts=worker_step.artifacts,
             )
         return WorkerOutput(
             status="failed", summary="worker exceeded maximum tool steps"
@@ -45,36 +45,36 @@ class WorkerAgent(BaseAgent[WorkerInput, WorkerStep]):
 
 
 def worker_agent(
-    task: WorkerInput,
+    subtask: WorkerTask,
     config: AppConfig,
     llm_client: SupportsStructuredLLM | None = None,
     tool_caller: ToolCaller | None = None,
 ) -> WorkerOutput:
     if llm_client is not None and tool_caller is not None:
-        return WorkerAgent(llm_client, tool_caller, config).run(task)
+        return WorkerAgent(llm_client, tool_caller, config).run(subtask)
 
     if llm_client is not None:
-        step = llm_client.chat_structured(
-            messages=build_messages(task, config, []),
+        worker_step = llm_client.chat_structured(
+            messages=build_messages(subtask, config, []),
             agent_name="worker",
             response_model=WorkerStep,
         )
-        if step.status == "tool_call":
+        if worker_step.status == "tool_call":
             return WorkerOutput(
                 status="failed",
                 summary="worker requested a tool, but no tool registry was provided",
             )
         return WorkerOutput(
-            status=step.status,
-            summary=step.summary,
-            artifacts=step.artifacts,
+            status=worker_step.status,
+            summary=worker_step.summary,
+            artifacts=worker_step.artifacts,
         )
 
     return WorkerOutput(
         status="completed",
         summary=(
-            f"worker mock completed '{task.instructions}' "
+            f"worker mock completed '{subtask.instructions}' "
             f"with model {config.models.worker}"
         ),
-        artifacts=[task.id],
+        artifacts=[subtask.id],
     )

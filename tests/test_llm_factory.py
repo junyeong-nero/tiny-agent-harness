@@ -1,6 +1,7 @@
 import sys
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 
 ROOT_DIR = Path(__file__).resolve().parents[1]
@@ -43,7 +44,8 @@ class LLMFactoryTestCase(unittest.TestCase):
             models=ModelsConfig(default="demo-model"),
         )
 
-        client = create_llm_client(config, api_key="test-key", max_retries=3)
+        with patch.dict("os.environ", {"OPENROUTER_API_KEY": "test-key"}):
+            client = create_llm_client(config, max_retries=3)
 
         self.assertIsInstance(client, LLMClient)
         self.assertIsInstance(client.provider, OpenRouterProvider)
