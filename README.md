@@ -16,7 +16,7 @@ It is intentionally simple:
 The current codebase includes:
 
 - **Package Runtime:** Located in `src/tiny_agent_harness/`, providing the core logic.
-- **Interactive CLI:** An entrypoint in [`src/cli.py`](src/cli.py) for running the harness.
+- **Interactive CLI:** A packaged entrypoint in [`src/tiny_agent_harness/cli.py`](src/tiny_agent_harness/cli.py) for running the harness.
 - **Provider Adapters:** Native support for OpenAI and OpenRouter.
 - **LLM Client:** A robust, schema-driven client with structured JSON validation and automated retries.
 - **Tool System:** Per-agent tool permissions enforced by a shared `ToolCaller`.
@@ -87,14 +87,14 @@ graph TD
 - the reviewer returns `approve`, or
 - `runtime.orchestrator_max_retries` is exhausted
 
-Each agent loop is bounded separately by tool step limits in `config.yaml`. If the orchestrator fails to produce a valid delegation after its tool loop, the runtime creates a fallback executor task from the original user prompt.
+Each agent loop is bounded separately by tool step limits in the active config. If the orchestrator fails to produce a valid delegation after its tool loop, the runtime creates a fallback executor task from the original user prompt.
 
 ## Repository Layout
 
 ```text
 src/
-  cli.py                       # Main CLI entrypoint
   tiny_agent_harness/
+    cli.py                     # Packaged CLI entrypoint
     agents/                    # Agent-specific logic and prompts
       orchestrator/
       executor/
@@ -107,12 +107,12 @@ src/
     skills/                    # (Empty) reserved for future use
     harness.py                 # Core runtime orchestration
 tests/                         # Unittest suite
-config.yaml                    # System configuration
+config.yaml                    # Example project-local configuration
 ```
 
 ## Configuration
 
-Configuration is loaded from [`config.yaml`](config.yaml).
+Configuration is loaded from a user-provided YAML file such as [`config.yaml`](config.yaml), or from the packaged default config when no file is provided.
 
 Current checked-in defaults:
 
@@ -137,11 +137,11 @@ runtime:
 
 ### Tool Permissions
 
-Tool permissions are defined in `config.yaml`, with some internal hard-coding:
+Tool permissions are defined in the active config, with some internal hard-coding:
 
 - **Orchestrator:** Hard-limited in code to `list_files` and `search` for safety.
 - **Executor:** Uses the subset of tools passed by the orchestrator in `ExecutorInput.allowed_tools`.
-- **Reviewer:** Uses the tools explicitly granted in `config.yaml`.
+- **Reviewer:** Uses the tools explicitly granted in the active config.
 
 ## Running Locally
 
@@ -158,10 +158,16 @@ Tool permissions are defined in `config.yaml`, with some internal hard-coding:
 
 3. **Start the CLI:**
    ```bash
-   python3 src/cli.py
+   tiny-agent --workspace .
    ```
 
-To use OpenRouter, switch `provider: openrouter` in `config.yaml` and set `OPENROUTER_API_KEY`.
+To use a project-local config file instead of the packaged default:
+
+```bash
+tiny-agent --workspace . --config config.yaml
+```
+
+To use OpenRouter, switch `provider: openrouter` in your config file and set `OPENROUTER_API_KEY`.
 
 ## Programmatic Usage
 
@@ -195,4 +201,4 @@ python3 -m unittest discover -s tests
 
 - **Skills:** The `skills/` directory is present but currently empty and not implemented.
 - **Mock Mode:** While `run_harness()` has mock behavior, the CLI currently requires a valid provider API key to initialize.
-- **Entrypoint:** The project uses `src/cli.py` as the main entrypoint; there is no root-level `main.py` or packaged console script.
+- **Project-local Overrides:** The packaged CLI uses an internal default config unless `--config` is provided.
