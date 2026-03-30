@@ -4,7 +4,24 @@
       "Bash(git add:*)",
       "Bash(git commit:*)",
       "Bash(/tmp/agent_analysis.txt:*)",
-      "Read(//tmp/**)"
+      "Read(//tmp/**)",
+      "Bash(python:*)",
+      "Bash(uv run:*)",
+      "Bash(uv pip:*)",
+      "Bash(uv sync:*)",
+      "Bash(PYTHONPATH=/Users/junyeong-nero/workspace/tiny-agents/src uv run --project /Users/junyeong-nero/workspace/tiny-agents python -c \"from tiny_agent_harness.harness import TinyHarness; from tiny_agent_harness.schemas import OrchestrationResult, ExecutorRequest, ReviewRequest; print\\('OK'\\)\" 2>&1)",
+      "Bash(PYTHONPATH=/Users/junyeong-nero/workspace/tiny-agents/src uv run --project /Users/junyeong-nero/workspace/tiny-agents python -m pytest tests/ -q 2>&1)",
+      "Bash(PYTHONPATH=/Users/junyeong-nero/workspace/tiny-agents/src uv run --project /Users/junyeong-nero/workspace/tiny-agents --with pytest python -m pytest tests/ -q 2>&1)",
+      "Bash(git -C /Users/junyeong-nero/workspace/tiny-agents stash)",
+      "Bash(PYTHONPATH=/Users/junyeong-nero/workspace/tiny-agents/src uv run --project /Users/junyeong-nero/workspace/tiny-agents --with pytest python -m pytest tests/test_cli.py tests/test_llm_factory.py -q)",
+      "Bash(git -C /Users/junyeong-nero/workspace/tiny-agents stash pop)",
+      "Bash(PYTHONPATH=/Users/junyeong-nero/workspace/tiny-agents/src uv run --project /Users/junyeong-nero/workspace/tiny-agents --with pytest python -m pytest tests/test_runtime.py tests/test_config.py -q 2>&1)",
+      "Bash(PYTHONPATH=/Users/junyeong-nero/workspace/tiny-agents/src uv run --project /Users/junyeong-nero/workspace/tiny-agents --with pytest python -m pytest tests/test_runtime.py -q 2>&1)",
+      "Bash(PYTHONPATH=/Users/junyeong-nero/workspace/tiny-agents/src uv run --project /Users/junyeong-nero/workspace/tiny-agents python -c \"\nfrom tiny_agent_harness.agents.base_agent import BaseAgent\nfrom tiny_agent_harness.agents.orchestrator.agent import orchestrator_agent\nfrom tiny_agent_harness.agents.reviewer.agent import reviewer_agent\nfrom tiny_agent_harness.agents.executor.agent import executor_agent\nfrom tiny_agent_harness.harness import run_harness\nprint\\('OK'\\)\n\" 2>&1)",
+      "Bash(/Users/junyeong-nero/workspace/tiny-agents/src/tiny_agent_harness/agents/executor/agent.py:*)",
+      "Bash(/Users/junyeong-nero/workspace/tiny-agents/src/tiny_agent_harness/agents/reviewer/agent.py:*)",
+      "Bash(PYTHONPATH=/Users/junyeong-nero/workspace/tiny-agents/src uv run --project /Users/junyeong-nero/workspace/tiny-agents python -c \"\nfrom tiny_agent_harness.agents.executor.agent import ExecutorAgent, executor_agent\nfrom tiny_agent_harness.agents.reviewer.agent import ReviewerAgent, reviewer_agent\nfrom tiny_agent_harness.agents.base_agent import BaseAgent\nprint\\('OK'\\)\n\" 2>&1)",
+      "Bash(PYTHONPATH=/Users/junyeong-nero/workspace/tiny-agents/src uv run --project /Users/junyeong-nero/workspace/tiny-agents python -c \"\nfrom tiny_agent_harness.schemas import \\(\n    ExecutorInput, ExecutorOutput, ExecutorStep,\n    OrchestratorOutput, OrchestratorStep,\n    ReviewerInput, ReviewerOutput, ReviewerStep,\n    ToolInput, ToolSpec,\n    RunRequest, RunState, RunResult, OrchestrationResult,\n\\)\nfrom tiny_agent_harness.agents.orchestrator.agent import orchestrator_agent\nfrom tiny_agent_harness.agents.executor.agent import ExecutorAgent, executor_agent\nfrom tiny_agent_harness.agents.reviewer.agent import ReviewerAgent, reviewer_agent\nfrom tiny_agent_harness.harness import run_harness, TinyHarness\nprint\\('OK'\\)\n\" 2>&1)"
     ]
   }
 }

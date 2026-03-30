@@ -1,100 +1,100 @@
-from tiny_agent_harness.agents.shared import SupportsStructuredLLM, format_tool_result
-from tiny_agent_harness.agents.reviewer.prompt import build_initial_messages
+from tiny_agent_harness.agents.base_agent import BaseAgent
+from tiny_agent_harness.agents.shared import SupportsStructuredLLM
+from tiny_agent_harness.agents.reviewer.prompt import build_messages
 from tiny_agent_harness.schemas import (
     AppConfig,
-    ExecutorResult,
-    ReviewResult,
+    OrchestratorOutput,
+    ReviewerInput,
+    ReviewerOutput,
     ReviewerStep,
-    Task,
 )
 from tiny_agent_harness.tools import ToolCaller
 
 
-def _execute_with_tools(
-    task: Task,
-    executor_result: ExecutorResult,
-    config: AppConfig,
-    llm_client: SupportsStructuredLLM,
-    tool_caller: ToolCaller,
-) -> ReviewResult:
-    max_tool_steps = config.runtime.reviewer_max_tool_steps
-    tool_requirements = tool_caller.available_tool_requirements(actor="reviewer")
-    messages = build_initial_messages(task, executor_result, config, tool_requirements)
-
-    for _ in range(max_tool_steps):
-        step = llm_client.chat_structured(
-            messages=messages,
+class ReviewerAgent(BaseAgent[ReviewerInput, ReviewerStep]):
+    def __init__(
+        self,
+        llm_client: SupportsStructuredLLM,
+        tool_caller: ToolCaller,
+        config: AppConfig,
+    ):
+        super().__init__(
             agent_name="reviewer",
-            response_model=ReviewerStep,
+            llm_client=llm_client,
+            tool_caller=tool_caller,
+            config=config,
+            message_builder=build_messages,
+            input_schema=ReviewerInput,
+            output_schema=ReviewerStep,
+            max_tool_steps=config.runtime.reviewer_max_tool_steps,
         )
-        messages = messages + [{"role": "assistant", "content": step.model_dump_json()}]
 
+    def run(self, request: ReviewerInput) -> ReviewerOutput:
+        step = super().run(request)
         if step.status == "completed":
             if step.decision is None:
-                return ReviewResult(
+                return ReviewerOutput(
                     decision="retry",
                     feedback="reviewer returned completed status without a decision",
                 )
-            return ReviewResult(decision=step.decision, feedback=step.summary)
-
-        if step.tool_call is None:
-            return ReviewResult(
-                decision="retry",
-                feedback="reviewer returned tool_call status without a tool_call payload",
-            )
-
-        try:
-            result = tool_caller.run_call(step.tool_call, actor="reviewer")
-        except ValueError as exc:
-            return ReviewResult(decision="retry", feedback=str(exc))
-
-        messages = messages + [{"role": "user", "content": format_tool_result(result)}]
-
-    return ReviewResult(decision="retry", feedback="reviewer exceeded maximum tool steps")
+            return ReviewerOutput(decision=step.decision, feedback=step.summary)
+        return ReviewerOutput(
+            decision="retry", feedback="reviewer exceeded maximum tool steps"
+        )
 
 
 def reviewer_agent(
-    task: Task,
-    executor_result: ExecutorResult,
+    original_prompt: str,
+    execution: OrchestratorOutput,
     config: AppConfig,
     llm_client: SupportsStructuredLLM | None = None,
     tool_caller: ToolCaller | None = None,
-) -> ReviewResult:
+) -> ReviewerOutput:
+    request = ReviewerInput(
+        original_prompt=original_prompt,
+        reply=execution.reply,
+        task=execution.task,
+        executor_result=execution.executor_result,
+    )
+
     if llm_client is not None and tool_caller is not None:
-        return _execute_with_tools(
-            task, executor_result, config, llm_client=llm_client, tool_caller=tool_caller
-        )
+        return ReviewerAgent(llm_client, tool_caller, config).run(request)
 
     if llm_client is not None:
         step = llm_client.chat_structured(
-            messages=build_initial_messages(task, executor_result, config, []),
+            messages=build_messages(request, config, []),
             agent_name="reviewer",
             response_model=ReviewerStep,
         )
         if step.status == "tool_call":
-            return ReviewResult(
+            return ReviewerOutput(
                 decision="retry",
                 feedback="reviewer requested a tool, but no tool registry was provided",
             )
         if step.decision is None:
-            return ReviewResult(
+            return ReviewerOutput(
                 decision="retry",
                 feedback="reviewer returned completed status without a decision",
             )
-        return ReviewResult(decision=step.decision, feedback=step.summary)
+        return ReviewerOutput(decision=step.decision, feedback=step.summary)
 
-    if executor_result.status != "completed":
-        return ReviewResult(
+    if request.reply is not None:
+        return ReviewerOutput(
+            decision="approve",
+            feedback=f"reviewer mock approved direct reply with model {config.models.reviewer}",
+        )
+    if request.executor_result.status != "completed":
+        return ReviewerOutput(
             decision="retry",
             feedback=(
-                f"reviewer mock rejected task {task.id} "
+                f"reviewer mock rejected task {request.task.id} "
                 f"with model {config.models.reviewer}"
             ),
         )
-    return ReviewResult(
+    return ReviewerOutput(
         decision="approve",
         feedback=(
-            f"reviewer mock approved task {task.id} "
+            f"reviewer mock approved task {request.task.id} "
             f"with model {config.models.reviewer}"
         ),
     )

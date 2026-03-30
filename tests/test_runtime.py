@@ -13,13 +13,13 @@ from tiny_agent_harness.channels import InputChannel, OutputChannel
 from tiny_agent_harness.channels.listener import ListenerChannel
 from tiny_agent_harness.harness import run_harness
 from tiny_agent_harness.schemas import (
-    ExecutorStep,
+    ExecutorInput,
     OutputEvent,
-    OrchestratorStep,
-    ReviewerStep,
+    OrchestratorOutput,
+    ReviewerInput,
     ReviewResult,
     RunRequest,
-    Task,
+    OrchestratorInput,
     ToolCall,
     ToolRequirement,
     load_config,
@@ -37,11 +37,11 @@ class FakeStructuredLLM:
     ):
         self.calls.append((agent_name, response_model))
 
-        if response_model is OrchestratorStep:
-            return OrchestratorStep(
-                status="completed",
+        if response_model is OrchestratorOutput:
+            return OrchestratorOutput(
+                status="delegate",
                 summary="llm orchestrator task ready",
-                task=Task(
+                task=OrchestratorInput(
                     id="task-llm-1",
                     instructions="llm task",
                     context="llm context",
@@ -49,15 +49,15 @@ class FakeStructuredLLM:
                 ),
             )
 
-        if response_model is ExecutorStep:
-            return ExecutorStep(
+        if response_model is ExecutorInput:
+            return ExecutorInput(
                 status="completed",
                 summary="llm executor result",
                 artifacts=["artifact-1"],
             )
 
-        if response_model is ReviewerStep:
-            return ReviewerStep(
+        if response_model is ReviewerInput:
+            return ReviewerInput(
                 status="completed",
                 summary="llm reviewer approved",
                 decision="approve",
@@ -124,9 +124,9 @@ class RuntimeTestCase(unittest.TestCase):
         self.assertEqual(
             llm_client.calls,
             [
-                ("orchestrator", OrchestratorStep),
-                ("executor", ExecutorStep),
-                ("reviewer", ReviewerStep),
+                ("orchestrator", OrchestratorOutput),
+                ("executor", ExecutorInput),
+                ("reviewer", ReviewerInput),
             ],
         )
         self.assertEqual(state.current_task.id, "task-llm-1")
@@ -169,11 +169,11 @@ class RuntimeTestCase(unittest.TestCase):
             ):
                 self.calls.append((agent_name, response_model))
 
-                if response_model is OrchestratorStep:
-                    return OrchestratorStep(
-                        status="completed",
+                if response_model is OrchestratorOutput:
+                    return OrchestratorOutput(
+                        status="delegate",
                         summary="task is ready",
-                        task=Task(
+                        task=OrchestratorInput(
                             id="task-llm-1",
                             instructions="inspect a file",
                             context="read something first",
@@ -181,10 +181,10 @@ class RuntimeTestCase(unittest.TestCase):
                         ),
                     )
 
-                if response_model is ExecutorStep:
+                if response_model is ExecutorInput:
                     self.executor_calls += 1
                     if self.executor_calls == 1:
-                        return ExecutorStep(
+                        return ExecutorInput(
                             status="tool_call",
                             summary="need to read the file first",
                             tool_call=ToolCall(
@@ -192,14 +192,14 @@ class RuntimeTestCase(unittest.TestCase):
                                 arguments={"path": "README.md"},
                             ),
                         )
-                    return ExecutorStep(
+                    return ExecutorInput(
                         status="completed",
                         summary="used the tool result and completed the task",
                         artifacts=["README.md"],
                     )
 
-                if response_model is ReviewerStep:
-                    return ReviewerStep(
+                if response_model is ReviewerInput:
+                    return ReviewerInput(
                         status="completed",
                         summary="looks good",
                         decision="approve",
@@ -267,11 +267,11 @@ class RuntimeTestCase(unittest.TestCase):
             ):
                 self.calls.append((agent_name, response_model))
 
-                if response_model is OrchestratorStep:
-                    return OrchestratorStep(
-                        status="completed",
+                if response_model is OrchestratorOutput:
+                    return OrchestratorOutput(
+                        status="delegate",
                         summary="task is ready",
-                        task=Task(
+                        task=OrchestratorInput(
                             id="task-llm-1",
                             instructions="review the README change",
                             context="executor already changed README.md",
@@ -279,17 +279,17 @@ class RuntimeTestCase(unittest.TestCase):
                         ),
                     )
 
-                if response_model is ExecutorStep:
-                    return ExecutorStep(
+                if response_model is ExecutorInput:
+                    return ExecutorInput(
                         status="completed",
                         summary="executor finished the README update",
                         artifacts=["README.md"],
                     )
 
-                if response_model is ReviewerStep:
+                if response_model is ReviewerInput:
                     self.reviewer_calls += 1
                     if self.reviewer_calls == 1:
-                        return ReviewerStep(
+                        return ReviewerInput(
                             status="tool_call",
                             summary="need to inspect the diff first",
                             tool_call=ToolCall(
@@ -297,7 +297,7 @@ class RuntimeTestCase(unittest.TestCase):
                                 arguments={"paths": ["README.md"]},
                             ),
                         )
-                    return ReviewerStep(
+                    return ReviewerInput(
                         status="completed",
                         summary="review completed after checking the diff",
                         decision="approve",
@@ -364,10 +364,10 @@ class RuntimeTestCase(unittest.TestCase):
             ):
                 self.calls.append((agent_name, response_model))
 
-                if response_model is OrchestratorStep:
+                if response_model is OrchestratorOutput:
                     self.orchestrator_calls += 1
                     if self.orchestrator_calls == 1:
-                        return OrchestratorStep(
+                        return OrchestratorOutput(
                             status="tool_call",
                             summary="inspect the repo first",
                             tool_call=ToolCall(
@@ -375,10 +375,10 @@ class RuntimeTestCase(unittest.TestCase):
                                 arguments={"pattern": "tiny-agent-harness"},
                             ),
                         )
-                    return OrchestratorStep(
-                        status="completed",
+                    return OrchestratorOutput(
+                        status="delegate",
                         summary="task is ready after inspection",
-                        task=Task(
+                        task=OrchestratorInput(
                             id="task-llm-1",
                             instructions="update README based on the repo state",
                             context="README.md mentions tiny-agent-harness",
@@ -386,15 +386,15 @@ class RuntimeTestCase(unittest.TestCase):
                         ),
                     )
 
-                if response_model is ExecutorStep:
-                    return ExecutorStep(
+                if response_model is ExecutorInput:
+                    return ExecutorInput(
                         status="completed",
                         summary="executor finished",
                         artifacts=["README.md"],
                     )
 
-                if response_model is ReviewerStep:
-                    return ReviewerStep(
+                if response_model is ReviewerInput:
+                    return ReviewerInput(
                         status="completed",
                         summary="review approved",
                         decision="approve",
@@ -451,8 +451,8 @@ class RuntimeTestCase(unittest.TestCase):
             def chat_structured(
                 self, messages, agent_name, response_model, model=None, max_retries=None
             ):
-                if response_model is OrchestratorStep:
-                    return OrchestratorStep(
+                if response_model is OrchestratorOutput:
+                    return OrchestratorOutput(
                         status="tool_call",
                         summary="inspect again",
                         tool_call=ToolCall(
@@ -461,15 +461,15 @@ class RuntimeTestCase(unittest.TestCase):
                         ),
                     )
 
-                if response_model is ExecutorStep:
-                    return ExecutorStep(
+                if response_model is ExecutorInput:
+                    return ExecutorInput(
                         status="completed",
                         summary="executor completed fallback task",
                         artifacts=["README.md"],
                     )
 
-                if response_model is ReviewerStep:
-                    return ReviewerStep(
+                if response_model is ReviewerInput:
+                    return ReviewerInput(
                         status="completed",
                         summary="review approved fallback path",
                         decision="approve",

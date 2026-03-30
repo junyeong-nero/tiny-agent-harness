@@ -1,15 +1,22 @@
-from tiny_agent_harness.agents.shared import SupportsStructuredLLM, format_tool_result
+from tiny_agent_harness.agents.base_agent import BaseAgent
+from tiny_agent_harness.agents.shared import SupportsStructuredLLM
 from tiny_agent_harness.agents.orchestrator.prompt import (
     EXECUTOR_TOOLS,
     ORCHESTRATOR_TOOLS,
-    build_initial_messages,
+    build_messages,
 )
-from tiny_agent_harness.schemas import AppConfig, OrchestratorStep, RunState, Task
+from tiny_agent_harness.schemas import (
+    AppConfig,
+    ExecutorInput,
+    OrchestratorOutput,
+    OrchestratorStep,
+    RunState,
+)
 from tiny_agent_harness.tools import ToolCaller
 
 
-def _build_fallback_task(state: RunState, reason: str) -> Task:
-    return Task(
+def _build_fallback_task(state: RunState, reason: str) -> ExecutorInput:
+    return ExecutorInput(
         id=f"task-{state.step_count + 1}",
         instructions=state.task,
         context=f"Fallback task for goal '{state.task}'. reason={reason}",
@@ -17,47 +24,42 @@ def _build_fallback_task(state: RunState, reason: str) -> Task:
     )
 
 
-def _execute_with_tools(
-    state: RunState,
-    config: AppConfig,
-    llm_client: SupportsStructuredLLM,
-    tool_caller: ToolCaller,
-) -> Task:
-    max_tool_steps = config.runtime.orchestrator_max_tool_steps
-    tool_requirements = tool_caller.available_tool_requirements(
-        actor="orchestrator",
-        allowed_tool_names=ORCHESTRATOR_TOOLS,
-    )
-    messages = build_initial_messages(state, config, tool_requirements)
-
-    for _ in range(max_tool_steps):
-        step = llm_client.chat_structured(
-            messages=messages,
+class OrchestratorAgent(BaseAgent[RunState, OrchestratorStep]):
+    def __init__(
+        self,
+        llm_client: SupportsStructuredLLM,
+        tool_caller: ToolCaller,
+        config: AppConfig,
+    ):
+        super().__init__(
             agent_name="orchestrator",
-            response_model=OrchestratorStep,
+            llm_client=llm_client,
+            tool_caller=tool_caller,
+            config=config,
+            message_builder=build_messages,
+            input_schema=RunState,
+            output_schema=OrchestratorStep,
+            max_tool_steps=config.runtime.orchestrator_max_tool_steps,
+            allowed_tools=ORCHESTRATOR_TOOLS,
         )
-        messages = messages + [{"role": "assistant", "content": step.model_dump_json()}]
 
-        if step.status == "completed":
-            if step.task is None:
-                return _build_fallback_task(
-                    state, "orchestrator returned completed status without a task"
-                )
-            return step.task
+    def run(self, state: RunState) -> OrchestratorOutput:
+        from tiny_agent_harness.agents.executor import executor_agent
 
-        if step.tool_call is None:
-            return _build_fallback_task(
-                state, "orchestrator returned tool_call status without a tool_call payload"
+        step = super().run(state)
+
+        if step.status == "reply":
+            return OrchestratorOutput(reply=step.summary)
+
+        if step.status == "delegate" and step.task is not None:
+            task = step.task
+        else:
+            task = _build_fallback_task(
+                state, "orchestrator exceeded maximum tool steps or returned delegate without task"
             )
 
-        result = tool_caller.run_call(
-            step.tool_call,
-            actor="orchestrator",
-            allowed_tool_names=ORCHESTRATOR_TOOLS,
-        )
-        messages = messages + [{"role": "user", "content": format_tool_result(result)}]
-
-    return _build_fallback_task(state, "orchestrator exceeded maximum tool steps")
+        executor_result = executor_agent(task, self.config, self.client, self.tool_caller)
+        return OrchestratorOutput(task=task, executor_result=executor_result)
 
 
 def orchestrator_agent(
@@ -65,34 +67,41 @@ def orchestrator_agent(
     config: AppConfig,
     llm_client: SupportsStructuredLLM | None = None,
     tool_caller: ToolCaller | None = None,
-) -> Task:
+) -> OrchestratorOutput:
+    from tiny_agent_harness.agents.executor import executor_agent
+
     if llm_client is not None and tool_caller is not None:
-        return _execute_with_tools(
-            state, config, llm_client=llm_client, tool_caller=tool_caller
-        )
+        return OrchestratorAgent(llm_client, tool_caller, config).run(state)
 
     if llm_client is not None:
         step = llm_client.chat_structured(
-            messages=build_initial_messages(state, config, []),
+            messages=build_messages(state, config, []),
             agent_name="orchestrator",
             response_model=OrchestratorStep,
         )
         if step.status == "tool_call":
-            return _build_fallback_task(
-                state, "orchestrator requested a tool, but no tool registry was provided"
+            task = _build_fallback_task(
+                state,
+                "orchestrator requested a tool, but no tool registry was provided",
             )
-        if step.task is None:
-            return _build_fallback_task(
-                state, "orchestrator returned completed status without a task"
+        elif step.task is None:
+            task = _build_fallback_task(
+                state, "orchestrator returned delegate status without a task"
             )
-        return step.task
+        else:
+            task = step.task
+    else:
+        task = ExecutorInput(
+            id=f"task-{state.step_count + 1}",
+            instructions=state.task,
+            context=(
+                f"Plan the next action for goal '{state.task}'. "
+                f"orchestrator model={config.models.orchestrator}"
+            ),
+            allowed_tools=EXECUTOR_TOOLS,
+        )
 
-    return Task(
-        id=f"task-{state.step_count + 1}",
-        instructions=state.task,
-        context=(
-            f"Plan the next action for goal '{state.task}'. "
-            f"orchestrator model={config.models.orchestrator}"
-        ),
-        allowed_tools=EXECUTOR_TOOLS,
+    executor_result = executor_agent(
+        task, config, llm_client=llm_client, tool_caller=tool_caller
     )
+    return OrchestratorOutput(task=task, executor_result=executor_result)
