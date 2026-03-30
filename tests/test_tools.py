@@ -36,14 +36,14 @@ class ToolsTestCase(unittest.TestCase):
         tool_caller = create_default_tool_caller(
             str(ROOT_DIR),
             actor_permissions={
-                "executor": ["bash", "read_file"],
+                "worker": ["bash", "read_file"],
                 "reviewer": ["read_file", "git_diff"],
             },
         )
 
-        executor_requirements = tool_caller.available_tool_requirements(actor="executor")
-        self.assertEqual([req.name for req in executor_requirements], ["bash", "read_file"])
-        self.assertIn("properties", tool_caller.tool_requirements("bash").arguments_schema)
+        worker_specs = tool_caller.available_tool_specs(actor="worker")
+        self.assertEqual([spec.name for spec in worker_specs], ["bash", "read_file"])
+        self.assertIn("properties", tool_caller.tool_spec("bash").arguments_schema)
 
         with self.assertRaisesRegex(ValueError, "not allowed"):
             tool_caller.run("apply_patch", {"patch": ""}, actor="reviewer")

@@ -38,7 +38,7 @@ class ConfigTestCase(unittest.TestCase):
                         "tools:",
                         "  orchestrator:",
                         "    - search",
-                        "  executor:",
+                        "  worker:",
                         "    - bash",
                         "  reviewer:",
                         "    - git_diff",
@@ -56,7 +56,7 @@ class ConfigTestCase(unittest.TestCase):
                 config.tools.as_actor_permissions(),
                 {
                     "orchestrator": ["search"],
-                    "executor": ["bash"],
+                    "worker": ["bash"],
                     "reviewer": ["git_diff"],
                 },
             )

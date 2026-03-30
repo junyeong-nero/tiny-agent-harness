@@ -9,7 +9,7 @@ SRC_DIR = ROOT_DIR / "src"
 if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
-from cli import collecting_listener
+from tiny_agent_harness.cli import collecting_listener
 from tiny_agent_harness.channels.listener import ListenerChannel
 from tiny_agent_harness.schemas import ListenerEvent
 
@@ -23,7 +23,7 @@ class ListenerChannelTestCase(unittest.TestCase):
         listener.add_channel("collector", collecting_listener(events))
         listener.add_channel("audit", lambda name, event: calls.append((name, event)))
 
-        event = ListenerEvent(kind="llm_request", agent="executor", message="sending request")
+        event = ListenerEvent(kind="llm_request", agent="worker", message="sending request")
 
         listener.call(event)
 

@@ -11,7 +11,7 @@ SRC_DIR = ROOT_DIR / "src"
 if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
-from cli import collecting_listener
+from tiny_agent_harness.cli import collecting_listener
 from tiny_agent_harness.channels.listener import ListenerChannel
 from tiny_agent_harness.llm import LLMClient
 from tiny_agent_harness.providers import BaseProvider
@@ -55,17 +55,17 @@ class LLMClientTestCase(unittest.TestCase):
             provider=provider,
             models=ModelsConfig(
                 default="default-model",
-                executor="executor-model",
+                worker="worker-model",
             ),
         )
 
         result = client.chat(
             messages=[{"role": "user", "content": "hello"}],
-            agent_name="executor",
+            agent_name="worker",
         )
 
         self.assertEqual(result, "ok")
-        self.assertEqual(provider.last_model, "executor-model")
+        self.assertEqual(provider.last_model, "worker-model")
 
     def test_chat_retries_until_success(self) -> None:
         provider = FakeProvider(
@@ -136,12 +136,12 @@ class LLMClientTestCase(unittest.TestCase):
 
         result = client.chat(
             messages=[{"role": "user", "content": "hello"}],
-            agent_name="executor",
+            agent_name="worker",
         )
 
         self.assertEqual(result, "ok")
         self.assertEqual([event.kind for event in events], ["llm_request", "llm_response"])
-        self.assertEqual(events[0].agent, "executor")
+        self.assertEqual(events[0].agent, "worker")
 
 
 if __name__ == "__main__":
