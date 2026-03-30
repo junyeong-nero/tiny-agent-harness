@@ -3,6 +3,9 @@
 `tiny-agent-harness` is a small, inspectable multi-agent runtime for a fixed
 `orchestrator -> worker -> reviewer` loop over a local workspace.
 
+In the current baseline, `orchestrator` still carries the planning role that
+will later be split into dedicated `planner` and `supervisor` agents.
+
 It is intentionally simple:
 
 - one config file
@@ -70,6 +73,7 @@ graph TD
 
 - `orchestrator`
   - receives the overall goal as `RunState`
+  - currently acts as the planning agent for the system
   - may return a direct reply for simple conversational inputs
   - may inspect the workspace with read-only tools (`list_files`, `search`)
   - may delegate a `WorkerInput` task to the worker
@@ -195,7 +199,9 @@ Run the test suite with:
 python3 -m unittest discover -s tests
 ```
 
-**Note:** At the moment, some tests still target older interfaces and do not pass against the current source tree. The code in `src/` is the authoritative reference for current behavior.
+The runtime-focused regression suite in [`tests/test_runtime.py`](tests/test_runtime.py)
+tracks the current `orchestrator -> worker -> reviewer` behavior and serves as the
+baseline for the upcoming role split refactor.
 
 ## Current Limitations
 
