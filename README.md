@@ -1,143 +1,198 @@
 # tiny-agent-harness
 
-`tiny-agent-harness` is a toy multi-agent harness for experimenting with a fixed 3-agent loop.
-It is intentionally small in scope, easy to inspect, and not production-oriented.
+`tiny-agent-harness` is a small, inspectable multi-agent runtime for a fixed
+`orchestrator -> executor -> reviewer` loop over a local workspace.
 
-## Overview
+It is intentionally simple:
 
-This repository is a minimal runtime for a small `orchestrator -> executor -> reviewer` workflow.
-It aims to stay simple enough to understand end-to-end while still leaving room for configurable
-models, pluggable I/O, and lightweight behavioral extensions.
+- one config file
+- one interactive CLI
+- a small set of workspace tools
+- direct HTTP provider adapters
+- Pydantic schemas for agent I/O and tool calls
+
+## What Exists Today
+
+The current codebase includes:
+
+- **Package Runtime:** Located in `src/tiny_agent_harness/`, providing the core logic.
+- **Interactive CLI:** An entrypoint in [`src/cli.py`](src/cli.py) for running the harness.
+- **Provider Adapters:** Native support for OpenAI and OpenRouter.
+- **LLM Client:** A robust, schema-driven client with structured JSON validation and automated retries.
+- **Tool System:** Per-agent tool permissions enforced by a shared `ToolCaller`.
+- **Event System:** Listener and output channels for real-time runtime events.
+- **Workspace Tools:**
+  - `bash`: execute shell commands
+  - `read_file`: read whole files or specific line ranges
+  - `search`: grep-like text searching
+  - `list_files`: recursive file listing
+  - `apply_patch`: apply unified diffs
+  - `git_diff`: inspect git changes
 
 ## Architecture
 
-The harness is built around a fixed 3-agent structure:
+The harness always uses three agents in a specific loop:
 
-1. `orchestrator`
-   Owns the goal, state, control flow, and external input/output.
-2. `executor`
-   Performs the assigned task and produces structured execution results.
-3. `reviewer`
-   Checks executor output and returns a structured review decision.
+1. `orchestrator`: Analyzes the goal and plans or replies.
+2. `executor`: Performs the actual workspace operations.
+3. `reviewer`: Verifies the outcome against the original user prompt.
 
-Runtime loop:
+High-level flow:
 
 ```text
-goal -> orchestrator -> executor -> reviewer -> state update -> next step / stop
+user prompt
+  -> InputChannel
+  -> TinyHarness.run()
+  -> run_harness()
+  -> orchestrator
+  -> executor (delegated by orchestrator)
+  -> reviewer
+  -> OutputChannel + listener events
 ```
 
-Only `orchestrator` should interact with external input and output channels.
-`executor` and `reviewer` should operate only on internal runtime messages and return structured
-results back to `orchestrator`.
+Mermaid view:
 
-## Runtime Model
+```mermaid
+graph TD
+    U["User Prompt"] --> IC["InputChannel"]
+    IC --> TH["TinyHarness.run()"]
+    TH --> RH["run_harness()"]
+    RH --> O["Orchestrator"]
+    O -->|delegate task| E["Executor"]
+    O -->|direct reply| R["Reviewer"]
+    E -->|executor result| R["Reviewer"]
+    R -->|approve or retry| S["RunState Update"]
+    S --> OC["OutputChannel"]
+    S --> LC["Listener Events"]
+```
 
-- `OpenRouter` as the default LLM provider
-- `config.yaml` for provider, model, retry, and runtime step settings
-- queue-based ingress and egress around the runtime
-- pluggable output handlers behind an `OutputEventDispatcher`
-- pluggable `listeners` for internal runtime events
-- Markdown-based `skills` for lightweight behavior customization
-- schema-driven tool calling through a shared `ToolCaller`
+### Agent responsibilities
 
-Current channel flow:
+- `orchestrator`
+  - receives the overall goal as `RunState`
+  - may return a direct reply for simple conversational inputs
+  - may inspect the workspace with read-only tools (`list_files`, `search`)
+  - may delegate an `ExecutorInput` task to the executor
+- `executor`
+  - receives a concrete task plus an allowed tool subset
+  - loops through tool calls until it returns `completed` or `failed`
+- `reviewer`
+  - evaluates the reply or executor result against the original prompt
+  - may inspect the workspace using allowed tools before deciding `approve` or `retry`
+
+### Runtime loop
+
+`run_harness()` repeats the orchestration cycle until either:
+
+- the reviewer returns `approve`, or
+- `runtime.orchestrator_max_retries` is exhausted
+
+Each agent loop is bounded separately by tool step limits in `config.yaml`. If the orchestrator fails to produce a valid delegation after its tool loop, the runtime creates a fallback executor task from the original user prompt.
+
+## Repository Layout
 
 ```text
-input sources -> IngressQueue -> RequestProcessor -> runtime
-             -> EgressQueue -> OutputEventDispatcher -> output handlers
+src/
+  cli.py                       # Main CLI entrypoint
+  tiny_agent_harness/
+    agents/                    # Agent-specific logic and prompts
+      orchestrator/
+      executor/
+      reviewer/
+    channels/                  # I/O and event channels
+    llm/                       # LLM client and provider factory
+    providers/                 # HTTP adapters for providers
+    schemas/                   # Pydantic models for the system
+    tools/                     # Built-in workspace tools
+    skills/                    # (Empty) reserved for future use
+    harness.py                 # Core runtime orchestration
+tests/                         # Unittest suite
+config.yaml                    # System configuration
 ```
 
-The default implementation uses local in-process queues, but the queue boundary is intended to make
-other input sources and output sinks easier to add later.
+## Configuration
 
-Minimal configuration:
+Configuration is loaded from [`config.yaml`](config.yaml).
+
+Current checked-in defaults:
 
 ```yaml
-provider: openrouter
+provider: openai
 
 models:
-  default: nvidia/nemotron-3-super-120b-a12b:free
-  orchestrator: nvidia/nemotron-3-super-120b-a12b:free
-  executor: nvidia/nemotron-3-super-120b-a12b:free
-  reviewer: nvidia/nemotron-3-super-120b-a12b:free
+  default: gpt-4o-mini
+  orchestrator: gpt-4o-mini
+  executor: gpt-4o-mini
+  reviewer: gpt-4o-mini
 
 llm:
-  max_retries: 2
+  max_retries: 10
 
 runtime:
-  orchestrator_max_tool_steps: 2
-  executor_max_tool_steps: 3
-  reviewer_max_tool_steps: 3
-
-tools:
-  orchestrator:
-    - list_files
-    - search
-  executor:
-    - bash
-    - read_file
-    - search
-    - list_files
-    - apply_patch
-  reviewer:
-    - read_file
-    - search
-    - list_files
-    - git_diff
+  orchestrator_max_retries: 3
+  orchestrator_max_tool_steps: 10
+  executor_max_tool_steps: 10
+  reviewer_max_tool_steps: 10
 ```
 
-Suggested skill layout:
+### Tool Permissions
 
-```text
-skills/
-  base/
-    executor/
-      SKILL.md
-    reviewer/
-      SKILL.md
-  custom/
-    some-skill/
-      SKILL.md
+Tool permissions are defined in `config.yaml`, with some internal hard-coding:
+
+- **Orchestrator:** Hard-limited in code to `list_files` and `search` for safety.
+- **Executor:** Uses the subset of tools passed by the orchestrator in `ExecutorInput.allowed_tools`.
+- **Reviewer:** Uses the tools explicitly granted in `config.yaml`.
+
+## Running Locally
+
+1. **Install dependencies:**
+   ```bash
+   uv sync
+   ```
+
+2. **Set API Key:**
+   The default config uses OpenAI:
+   ```bash
+   export OPENAI_API_KEY=your_key_here
+   ```
+
+3. **Start the CLI:**
+   ```bash
+   python3 src/cli.py
+   ```
+
+To use OpenRouter, switch `provider: openrouter` in `config.yaml` and set `OPENROUTER_API_KEY`.
+
+## Programmatic Usage
+
+```python
+from tiny_agent_harness.harness import run_harness
+from tiny_agent_harness.schemas import RunRequest, load_config
+
+config = load_config("config.yaml")
+state, result = run_harness(RunRequest(prompt="inspect the repo"), config)
 ```
 
-Skills are read from Markdown and injected into agent context before execution.
+For interactive applications, use the `TinyHarness` class which manages the channels and event loops.
 
-Tool access is assigned per role:
+## Events and Output
 
-- `orchestrator`: `list_files`, `search`
-- `executor`: `bash`, `read_file`, `search`, `list_files`, `apply_patch`
-- `reviewer`: `read_file`, `search`, `list_files`, `git_diff`
+The runtime emits listener events for `run_started`, `run_completed`, `run_failed`, `llm_request`, `llm_response`, `llm_error`, `tool_call_started`, and `tool_call_finished`.
 
-All tool calls are schema-driven. Each tool exposes a description and argument schema, and the
-shared caller layer enforces role-based access before execution.
+The CLI provides a `console_listener` that prints real-time activity and summaries.
 
-## Current Status
+## Tests
 
-The project is still in an early scaffold stage. The next step is to build the smallest possible
-version of the agreed design:
-
-- load provider and model settings from `config.yaml`
-- run the fixed 3-agent loop
-- expand queue-backed input/output integrations
-- support Markdown-based skills
-- provide a small core tool set for execution and review
-
-## Tech Stack
-
-- Python 3.13+
-- OpenRouter as the default provider
-- uv for dependency management
-
-## Getting Started
-
-Install dependencies:
+Run the test suite with:
 
 ```bash
-uv sync
+python3 -m unittest discover -s tests
 ```
 
-Run the project:
+**Note:** At the moment, some tests still target older interfaces and do not pass against the current source tree. The code in `src/` is the authoritative reference for current behavior.
 
-```bash
-uv run python main.py
-```
+## Current Limitations
+
+- **Skills:** The `skills/` directory is present but currently empty and not implemented.
+- **Mock Mode:** While `run_harness()` has mock behavior, the CLI currently requires a valid provider API key to initialize.
+- **Entrypoint:** The project uses `src/cli.py` as the main entrypoint; there is no root-level `main.py` or packaged console script.
