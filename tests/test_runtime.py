@@ -11,16 +11,21 @@ if str(SRC_DIR) not in sys.path:
 
 from tiny_agent_harness.channels import InputChannel, OutputChannel
 from tiny_agent_harness.channels.listener import ListenerChannel
+from tiny_agent_harness.agents.planner import planner_agent
+from tiny_agent_harness.agents.supervisor import supervisor_agent
 from tiny_agent_harness.harness import run_harness
 from tiny_agent_harness.schemas import (
     OutputEvent,
+    PlannerInput,
     PlannerStep,
     RunRequest,
+    RunOutput,
+    RunState,
     ReviewerStep,
     ToolInput,
     ToolSpec,
     WorkerStep,
-    WorkerTask,
+    WorkerInput,
     load_config,
 )
 from tiny_agent_harness.tools import ToolCaller
@@ -40,7 +45,7 @@ class FakeStructuredLLM:
             return PlannerStep(
                 status="delegate",
                 summary="llm orchestrator task ready",
-                task=WorkerTask(
+                task=WorkerInput(
                     id="task-llm-1",
                     instructions="llm task",
                     context="llm context",
@@ -66,6 +71,188 @@ class FakeStructuredLLM:
 
 
 class RuntimeTestCase(unittest.TestCase):
+    def test_planner_agent_returns_a_task_without_running_worker(self) -> None:
+        class FakePlannerOnlyLLM:
+            def chat_structured(
+                self, messages, agent_name, response_model, model=None, max_retries=None
+            ):
+                if response_model is not PlannerStep:
+                    raise AssertionError(f"unexpected response model: {response_model}")
+                return PlannerStep(
+                    status="delegate_worker",
+                    summary="planner prepared the task",
+                    task=WorkerInput(
+                        id="task-llm-1",
+                        instructions="update README",
+                        context="planner context",
+                        allowed_tools=["read_file"],
+                    ),
+                )
+
+        config = load_config(ROOT_DIR / "config.yaml")
+        state = PlannerInput(task="update README")
+        planner_result = planner_agent(state, config, llm_client=FakePlannerOnlyLLM())
+
+        self.assertEqual(planner_result.task.id, "task-llm-1")
+        self.assertEqual(planner_result.reply, None)
+        self.assertIsNone(planner_result.worker_result)
+
+    def test_planner_agent_leaves_direct_reply_resolution_to_supervisor(self) -> None:
+        class FakePlannerReplyLLM:
+            def chat_structured(
+                self, messages, agent_name, response_model, model=None, max_retries=None
+            ):
+                if response_model is not PlannerStep:
+                    raise AssertionError(f"unexpected response model: {response_model}")
+                return PlannerStep(
+                    status="reply",
+                    summary="hello from planner",
+                )
+
+        config = load_config(ROOT_DIR / "config.yaml")
+        state = PlannerInput(task="say hello")
+
+        planner_result = planner_agent(state, config, llm_client=FakePlannerReplyLLM())
+
+        self.assertEqual(len(planner_result.plan), 1)
+        self.assertEqual(planner_result.plan[0].status, "reply")
+        self.assertIsNone(planner_result.reply)
+        self.assertIsNone(planner_result.task)
+
+    def test_supervisor_agent_runs_planner_worker_reviewer_pipeline(self) -> None:
+        class FakeSupervisorLLM:
+            def __init__(self) -> None:
+                self.calls: list[tuple[str, type]] = []
+
+            def chat_structured(
+                self, messages, agent_name, response_model, model=None, max_retries=None
+            ):
+                self.calls.append((agent_name, response_model))
+
+                if response_model is PlannerStep:
+                    return PlannerStep(
+                        status="delegate_worker",
+                        summary="planner prepared the task",
+                        task=WorkerInput(
+                            id="task-llm-1",
+                            instructions="update README",
+                            context="planner context",
+                            allowed_tools=["read_file"],
+                        ),
+                    )
+
+                if response_model is WorkerStep:
+                    return WorkerStep(
+                        status="completed",
+                        summary="worker finished",
+                        artifacts=["README.md"],
+                    )
+
+                if response_model is ReviewerStep:
+                    return ReviewerStep(
+                        status="completed",
+                        summary="review approved",
+                        decision="approve",
+                    )
+
+                raise AssertionError(f"unexpected response model: {response_model}")
+
+        config = load_config(ROOT_DIR / "config.yaml")
+        state = RunState(task="update README")
+        llm_client = FakeSupervisorLLM()
+
+        cycle_result = supervisor_agent(state, config, llm_client=llm_client)
+
+        self.assertIsInstance(cycle_result, RunOutput)
+        self.assertEqual(cycle_result.task.id, "task-llm-1")
+        self.assertEqual(cycle_result.worker_result.status, "completed")
+        self.assertEqual(cycle_result.review_result.decision, "approve")
+        self.assertTrue(cycle_result.done)
+        self.assertEqual(
+            llm_client.calls,
+            [
+                ("planner", PlannerStep),
+                ("worker", WorkerStep),
+                ("reviewer", ReviewerStep),
+            ],
+        )
+
+    def test_run_harness_retries_full_supervisor_cycle_after_review_retry(self) -> None:
+        class FakeRetryingLLM:
+            def __init__(self) -> None:
+                self.calls: list[tuple[str, type]] = []
+                self.planner_calls = 0
+                self.reviewer_calls = 0
+
+            def chat_structured(
+                self, messages, agent_name, response_model, model=None, max_retries=None
+            ):
+                self.calls.append((agent_name, response_model))
+
+                if response_model is PlannerStep:
+                    self.planner_calls += 1
+                    return PlannerStep(
+                        status="delegate_worker",
+                        summary=f"planner attempt {self.planner_calls}",
+                        task=WorkerInput(
+                            id=f"task-llm-{self.planner_calls}",
+                            instructions=f"attempt {self.planner_calls}",
+                            context=f"context {self.planner_calls}",
+                            allowed_tools=["bash"],
+                        ),
+                    )
+
+                if response_model is WorkerStep:
+                    return WorkerStep(
+                        status="completed",
+                        summary="worker completed the delegated task",
+                        artifacts=["artifact.txt"],
+                    )
+
+                if response_model is ReviewerStep:
+                    self.reviewer_calls += 1
+                    if self.reviewer_calls == 1:
+                        return ReviewerStep(
+                            status="completed",
+                            summary="needs another pass",
+                            decision="retry",
+                        )
+                    return ReviewerStep(
+                        status="completed",
+                        summary="looks good now",
+                        decision="approve",
+                    )
+
+                raise AssertionError(f"unexpected response model: {response_model}")
+
+        config = load_config(ROOT_DIR / "config.yaml")
+        request = RunRequest(prompt="demo goal")
+        llm_client = FakeRetryingLLM()
+
+        state, result = run_harness(request, config, llm_client=llm_client)
+
+        self.assertEqual(
+            llm_client.calls,
+            [
+                ("planner", PlannerStep),
+                ("worker", WorkerStep),
+                ("reviewer", ReviewerStep),
+                ("planner", PlannerStep),
+                ("worker", WorkerStep),
+                ("reviewer", ReviewerStep),
+            ],
+        )
+        self.assertEqual(state.step_count, 2)
+        self.assertEqual(state.review_cycles, 2)
+        self.assertEqual(
+            [task.id for task in state.completed_subtasks], ["task-llm-1", "task-llm-2"]
+        )
+        self.assertEqual(len(state.worker_results), 2)
+        self.assertEqual(state.current_task.id, "task-llm-2")
+        self.assertEqual(state.last_review_result.decision, "approve")
+        self.assertTrue(state.done)
+        self.assertEqual(result.status, "completed")
+
     def test_run_harness_completes_single_mock_cycle(self) -> None:
         config = load_config(ROOT_DIR / "config.yaml")
         request = RunRequest(prompt="demo goal")
@@ -172,7 +359,7 @@ class RuntimeTestCase(unittest.TestCase):
                     return PlannerStep(
                         status="delegate",
                         summary="task is ready",
-                        task=WorkerTask(
+                        task=WorkerInput(
                             id="task-llm-1",
                             instructions="inspect a file",
                             context="read something first",
@@ -270,7 +457,7 @@ class RuntimeTestCase(unittest.TestCase):
                     return PlannerStep(
                         status="delegate",
                         summary="task is ready",
-                        task=WorkerTask(
+                        task=WorkerInput(
                             id="task-llm-1",
                             instructions="review the README change",
                             context="worker already changed README.md",
@@ -377,7 +564,7 @@ class RuntimeTestCase(unittest.TestCase):
                     return PlannerStep(
                         status="delegate",
                         summary="task is ready after inspection",
-                        task=WorkerTask(
+                        task=WorkerInput(
                             id="task-llm-1",
                             instructions="update README based on the repo state",
                             context="README.md mentions tiny-agent-harness",
@@ -492,9 +679,7 @@ class RuntimeTestCase(unittest.TestCase):
             tool_caller=tool_caller,
         )
 
-        self.assertIn(
-            "planner exceeded maximum tool steps", state.current_task.context
-        )
+        self.assertIn("planner exceeded maximum tool steps", state.current_task.context)
         self.assertEqual(state.current_task.instructions, "introduce yourself")
         self.assertEqual(state.last_review_result.decision, "approve")
         self.assertEqual(result.status, "completed")
@@ -542,6 +727,7 @@ class RuntimeTestCase(unittest.TestCase):
         self.assertEqual(state.last_review_result.decision, "approve")
         self.assertTrue(state.done)
         self.assertEqual(result.status, "completed")
+        self.assertEqual(result.summary, "prompt='say hello' reply='hello from planner' review_decision='approve'")
 
 
 if __name__ == "__main__":

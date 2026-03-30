@@ -7,6 +7,7 @@ from tiny_agent_harness.schemas import (
     ReviewerInput,
     ReviewerOutput,
     ReviewerStep,
+    WorkerOutput,
 )
 from tiny_agent_harness.tools import ToolCaller
 
@@ -50,6 +51,7 @@ def reviewer_agent(
     original_prompt: str,
     planner_result: PlannerOutput,
     config: AppConfig,
+    worker_result: WorkerOutput | None = None,
     llm_client: SupportsStructuredLLM | None = None,
     tool_caller: ToolCaller | None = None,
 ) -> ReviewerOutput:
@@ -57,7 +59,7 @@ def reviewer_agent(
         original_prompt=original_prompt,
         reply=planner_result.reply,
         task=planner_result.task,
-        worker_result=planner_result.worker_result,
+        worker_result=worker_result or planner_result.worker_result,
     )
 
     if llm_client is not None and tool_caller is not None:

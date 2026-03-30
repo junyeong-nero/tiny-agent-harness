@@ -2,6 +2,7 @@ provider: openai
 
 models:
     default: gpt-4o-mini
+    supervisor: gpt-4o-mini
     planner: gpt-4o-mini
     worker: gpt-4o-mini
     reviewer: gpt-4o-mini
@@ -18,11 +19,13 @@ llm:
     max_retries: 10
 
 runtime:
+    supervisor_max_retries: 3
     planner_max_tool_steps: 10
     worker_max_tool_steps: 10
     reviewer_max_tool_steps: 10
 
 tools:
+    supervisor: []
     planner:
         - list_files
         - search

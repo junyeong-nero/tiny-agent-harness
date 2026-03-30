@@ -7,16 +7,16 @@ from tiny_agent_harness.agents.planner.prompt import (
 )
 from tiny_agent_harness.schemas import (
     AppConfig,
+    PlannerInput,
     PlannerOutput,
     PlannerStep,
-    RunState,
-    WorkerTask,
+    WorkerInput,
 )
 from tiny_agent_harness.tools import ToolCaller
 
 
-def _build_fallback_subtask(state: RunState, reason: str) -> WorkerTask:
-    return WorkerTask(
+def _build_fallback_subtask(state: PlannerInput, reason: str) -> WorkerInput:
+    return WorkerInput(
         id=f"task-{state.step_count + 1}",
         kind="implement",
         instructions=state.task,
@@ -25,7 +25,7 @@ def _build_fallback_subtask(state: RunState, reason: str) -> WorkerTask:
     )
 
 
-def _select_worker_subtask(plan_step: PlannerStep) -> WorkerTask | None:
+def _select_worker_subtask(plan_step: PlannerStep) -> WorkerInput | None:
     if plan_step.task is not None:
         return plan_step.task
 
@@ -38,7 +38,7 @@ def _select_worker_subtask(plan_step: PlannerStep) -> WorkerTask | None:
     return None
 
 
-class PlannerAgent(BaseAgent[RunState, PlannerStep]):
+class PlannerAgent(BaseAgent[PlannerInput, PlannerStep]):
     def __init__(
         self,
         llm_client: SupportsStructuredLLM,
@@ -51,19 +51,16 @@ class PlannerAgent(BaseAgent[RunState, PlannerStep]):
             tool_caller=tool_caller,
             config=config,
             message_builder=build_messages,
-            input_schema=RunState,
+            input_schema=PlannerInput,
             output_schema=PlannerStep,
             max_tool_steps=config.runtime.planner_max_tool_steps,
             allowed_tools=PLANNER_TOOLS,
         )
 
-    def run(self, state: RunState) -> PlannerOutput:
-        from tiny_agent_harness.agents.worker import worker_agent
-
+    def run(self, state: PlannerInput) -> PlannerOutput:
         plan_step = super().run(state)
-
         if plan_step.status == "reply":
-            return PlannerOutput(reply=plan_step.summary, plan=[plan_step])
+            return PlannerOutput(plan=[plan_step])
 
         worker_subtask = _select_worker_subtask(plan_step)
         if worker_subtask is None:
@@ -72,24 +69,15 @@ class PlannerAgent(BaseAgent[RunState, PlannerStep]):
                 "planner exceeded maximum tool steps or returned delegation without a task",
             )
 
-        worker_output = worker_agent(
-            worker_subtask, self.config, self.client, self.tool_caller
-        )
-        return PlannerOutput(
-            plan=[plan_step],
-            task=worker_subtask,
-            worker_result=worker_output,
-        )
+        return PlannerOutput(plan=[plan_step], task=worker_subtask)
 
 
 def planner_agent(
-    state: RunState,
+    state: PlannerInput,
     config: AppConfig,
     llm_client: SupportsStructuredLLM | None = None,
     tool_caller: ToolCaller | None = None,
 ) -> PlannerOutput:
-    from tiny_agent_harness.agents.worker import worker_agent
-
     if llm_client is not None and tool_caller is not None:
         return PlannerAgent(llm_client, tool_caller, config).run(state)
 
@@ -100,7 +88,7 @@ def planner_agent(
             response_model=PlannerStep,
         )
         if plan_step.status == "reply":
-            return PlannerOutput(reply=plan_step.summary, plan=[plan_step])
+            return PlannerOutput(plan=[plan_step])
         if plan_step.status == "tool_call":
             worker_subtask = _build_fallback_subtask(
                 state,
@@ -113,16 +101,9 @@ def planner_agent(
                     state,
                     "planner returned delegation without a task",
                 )
-        worker_output = worker_agent(
-            worker_subtask, config, llm_client=llm_client, tool_caller=tool_caller
-        )
-        return PlannerOutput(
-            plan=[plan_step],
-            task=worker_subtask,
-            worker_result=worker_output,
-        )
+        return PlannerOutput(plan=[plan_step], task=worker_subtask)
 
-    worker_subtask = WorkerTask(
+    worker_subtask = WorkerInput(
         id=f"task-{state.step_count + 1}",
         kind="implement",
         instructions=state.task,
@@ -132,7 +113,4 @@ def planner_agent(
         ),
         allowed_tools=WORKER_TOOLS,
     )
-    worker_output = worker_agent(
-        worker_subtask, config, llm_client=llm_client, tool_caller=tool_caller
-    )
-    return PlannerOutput(task=worker_subtask, worker_result=worker_output)
+    return PlannerOutput(task=worker_subtask)

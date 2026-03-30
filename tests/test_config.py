@@ -19,10 +19,13 @@ class ConfigTestCase(unittest.TestCase):
 
         self.assertEqual(config.provider, "openai")
         self.assertEqual(config.models.default, "gpt-4o-mini")
+        self.assertEqual(config.models.supervisor, "gpt-4o-mini")
         self.assertEqual(config.models.planner, "gpt-4o-mini")
         self.assertEqual(config.models.orchestrator, "gpt-4o-mini")
+        self.assertEqual(config.runtime.supervisor_max_retries, 3)
         self.assertEqual(config.runtime.planner_max_tool_steps, 10)
         self.assertEqual(config.runtime.orchestrator_max_tool_steps, 10)
+        self.assertEqual(config.tools.as_actor_permissions()["supervisor"], [])
 
     def test_load_config_reads_legacy_orchestrator_keys_into_planner_config(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:

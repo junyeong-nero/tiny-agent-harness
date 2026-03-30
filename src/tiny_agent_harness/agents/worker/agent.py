@@ -5,12 +5,12 @@ from tiny_agent_harness.schemas import (
     AppConfig,
     WorkerOutput,
     WorkerStep,
-    WorkerTask,
+    WorkerInput,
 )
 from tiny_agent_harness.tools import ToolCaller
 
 
-class WorkerAgent(BaseAgent[WorkerTask, WorkerStep]):
+class WorkerAgent(BaseAgent[WorkerInput, WorkerStep]):
     def __init__(
         self,
         llm_client: SupportsStructuredLLM,
@@ -23,15 +23,15 @@ class WorkerAgent(BaseAgent[WorkerTask, WorkerStep]):
             tool_caller=tool_caller,
             config=config,
             message_builder=build_messages,
-            input_schema=WorkerTask,
+            input_schema=WorkerInput,
             output_schema=WorkerStep,
             max_tool_steps=config.runtime.worker_max_tool_steps,
         )
 
-    def _get_allowed_tools(self, subtask: WorkerTask) -> list[str]:
+    def _get_allowed_tools(self, subtask: WorkerInput) -> list[str]:
         return subtask.allowed_tools
 
-    def run(self, subtask: WorkerTask) -> WorkerOutput:
+    def run(self, subtask: WorkerInput) -> WorkerOutput:
         worker_step = super().run(subtask)
         if worker_step.status in {"completed", "failed"}:
             return WorkerOutput(
@@ -45,7 +45,7 @@ class WorkerAgent(BaseAgent[WorkerTask, WorkerStep]):
 
 
 def worker_agent(
-    subtask: WorkerTask,
+    subtask: WorkerInput,
     config: AppConfig,
     llm_client: SupportsStructuredLLM | None = None,
     tool_caller: ToolCaller | None = None,

@@ -1,10 +1,10 @@
 from tiny_agent_harness.agents.shared import format_tool_catalog
 from tiny_agent_harness.providers import ChatMessage
-from tiny_agent_harness.schemas import AppConfig, ToolSpec, WorkerTask
+from tiny_agent_harness.schemas import AppConfig, ToolSpec, WorkerInput
 
 
 def build_messages(
-    worker_task: WorkerTask,
+    worker_task: WorkerInput,
     config: AppConfig,
     tool_specs: list[ToolSpec],
 ) -> list[ChatMessage]:
