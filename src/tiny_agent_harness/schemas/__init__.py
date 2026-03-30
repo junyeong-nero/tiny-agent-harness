@@ -7,40 +7,46 @@ from tiny_agent_harness.schemas.config import (
     load_config,
 )
 from tiny_agent_harness.schemas.channels import InputRequest, OutputEvent, RunOutput
-from tiny_agent_harness.schemas.runtime import (
+from tiny_agent_harness.schemas.agents import (
+    ExecutorInput,
+    ExecutorOutput,
     ExecutorStep,
-    ExecutorResult,
+    OrchestrationResult,
+    OrchestratorOutput,
     OrchestratorStep,
-    ReviewResult,
+    ReviewerInput,
+    ReviewerOutput,
     ReviewerStep,
     RunRequest,
     RunResult,
     RunState,
-    Task,
 )
 from tiny_agent_harness.schemas.listeners import ListenerEvent
-from tiny_agent_harness.schemas.tools import ToolCall, ToolRequirement
+from tiny_agent_harness.schemas.tools import ToolInput, ToolSpec
 
 __all__ = [
     "AppConfig",
+    "ExecutorInput",
+    "ExecutorOutput",
     "ExecutorStep",
-    "ExecutorResult",
     "InputRequest",
     "LLMConfig",
     "ListenerEvent",
     "ModelsConfig",
+    "OrchestrationResult",
+    "OrchestratorOutput",
     "OrchestratorStep",
     "OutputEvent",
-    "ReviewResult",
+    "ReviewerInput",
+    "ReviewerOutput",
     "ReviewerStep",
     "RuntimeConfig",
-    "ToolPermissionsConfig",
     "RunOutput",
     "RunRequest",
     "RunResult",
     "RunState",
-    "Task",
-    "ToolCall",
-    "ToolRequirement",
+    "ToolInput",
+    "ToolPermissionsConfig",
+    "ToolSpec",
     "load_config",
 ]

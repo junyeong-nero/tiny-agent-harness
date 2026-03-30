@@ -46,20 +46,22 @@ class LLMConfig(BaseModel):
 class RuntimeConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
+    orchestrator_max_retries: int = 3
     orchestrator_max_tool_steps: int = 2
     executor_max_tool_steps: int = 3
     reviewer_max_tool_steps: int = 3
 
     @field_validator(
+        "orchestrator_max_retries",
         "orchestrator_max_tool_steps",
         "executor_max_tool_steps",
         "reviewer_max_tool_steps",
         mode="before",
     )
     @classmethod
-    def validate_max_tool_steps(cls, value: Any) -> int:
+    def validate_max_steps(cls, value: Any) -> int:
         if not isinstance(value, int) or value < 1:
-            raise ValueError("max tool steps must be an integer greater than or equal to 1")
+            raise ValueError("value must be an integer greater than or equal to 1")
         return value
 
 

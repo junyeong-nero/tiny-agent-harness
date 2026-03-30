@@ -1,7 +1,7 @@
 from typing import Protocol
 
 from tiny_agent_harness.providers import ChatMessage
-from tiny_agent_harness.schemas import ToolRequirement
+from tiny_agent_harness.schemas import ToolSpec
 from tiny_agent_harness.tools import ToolResult
 
 
@@ -16,11 +16,11 @@ class SupportsStructuredLLM(Protocol):
     ): ...
 
 
-def format_tool_catalog(tool_requirements: list[ToolRequirement]) -> str:
+def format_tool_catalog(tool_specs: list[ToolSpec]) -> str:
     return (
         "\n".join(
-            f"- {req.name}: {req.description}\n  schema: {req.arguments_schema}"
-            for req in tool_requirements
+            f"- {spec.name}: {spec.description}\n  schema: {spec.arguments_schema}"
+            for spec in tool_specs
         )
         or "none"
     )

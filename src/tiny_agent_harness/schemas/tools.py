@@ -3,14 +3,14 @@ from typing import Any
 from pydantic import BaseModel, ConfigDict, Field
 
 
-class ToolCall(BaseModel):
+class ToolInput(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     tool: str
     arguments: dict[str, Any] = Field(default_factory=dict)
 
 
-class ToolRequirement(BaseModel):
+class ToolSpec(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     name: str

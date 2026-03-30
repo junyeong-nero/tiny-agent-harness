@@ -1,7 +1,7 @@
 from typing import Any
 
 from tiny_agent_harness.channels.listener import ListenerChannel
-from tiny_agent_harness.schemas import ListenerEvent, ToolCall, ToolPermissionsConfig, ToolRequirement
+from tiny_agent_harness.schemas import ListenerEvent, ToolInput, ToolPermissionsConfig, ToolSpec
 from tiny_agent_harness.tools.base import BaseTool, ToolResult
 
 ToolRegistry = dict[str, BaseTool]
@@ -39,13 +39,12 @@ class ToolCaller:
         message: str = "",
         data: dict[str, Any] | None = None,
     ) -> None:
-        event = ListenerEvent(
+        self.ch_listener.call(ListenerEvent(
             kind=kind,
             agent=actor,
             message=message,
             data=data or {},
-        )
-        self.ch_listener.call(event)
+        ))
 
     def allowed_tool_names(
         self,
@@ -59,21 +58,19 @@ class ToolCaller:
             names &= set(self.actor_permissions[actor])
         return sorted(names)
 
-    def tool_requirements(self, tool_name: str) -> ToolRequirement:
+    def tool_spec(self, tool_name: str) -> ToolSpec:
         tool = self.tools.get(tool_name)
         if tool is None:
             raise ValueError(f"unknown tool: {tool_name}")
         return tool.requirements()
 
-    def available_tool_requirements(
+    def available_tool_specs(
         self,
         actor: str | None = None,
         allowed_tool_names: list[str] | None = None,
-    ) -> list[ToolRequirement]:
-        names = self.allowed_tool_names(
-            actor=actor, allowed_tool_names=allowed_tool_names
-        )
-        return [self.tool_requirements(name) for name in names]
+    ) -> list[ToolSpec]:
+        names = self.allowed_tool_names(actor=actor, allowed_tool_names=allowed_tool_names)
+        return [self.tool_spec(name) for name in names]
 
     def run(
         self,
@@ -93,35 +90,23 @@ class ToolCaller:
             raise ValueError(f"unknown tool: {tool_name}")
 
         resolved_arguments = arguments or {}
-        self._emit(
-            kind="tool_call_started",
-            actor=actor,
-            message="starting tool call",
-            data={"tool": tool_name, "arguments": resolved_arguments},
-        )
+        self._emit("tool_call_started", actor=actor, message="starting tool call",
+                   data={"tool": tool_name, "arguments": resolved_arguments})
         result = tool.run(resolved_arguments)
-        self._emit(
-            kind="tool_call_finished",
-            actor=actor,
-            message="finished tool call",
-            data={
-                "tool": tool_name,
-                "ok": result.ok,
-                "content": result.content,
-                "error": result.error,
-            },
-        )
+        self._emit("tool_call_finished", actor=actor, message="finished tool call",
+                   data={"tool": tool_name, "ok": result.ok,
+                         "content": result.content, "error": result.error})
         return result
 
     def run_call(
         self,
-        tool_call: ToolCall,
+        tool_input: ToolInput,
         actor: str | None = None,
         allowed_tool_names: list[str] | None = None,
     ) -> ToolResult:
         return self.run(
-            tool_name=tool_call.tool,
-            arguments=tool_call.arguments,
+            tool_name=tool_input.tool,
+            arguments=tool_input.arguments,
             actor=actor,
             allowed_tool_names=allowed_tool_names,
         )

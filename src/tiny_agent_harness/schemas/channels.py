@@ -2,7 +2,7 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict
 
-from tiny_agent_harness.schemas.runtime import RunRequest, RunResult, RunState
+from tiny_agent_harness.schemas.agents import RunRequest, RunResult, RunState
 
 
 class InputRequest(BaseModel):

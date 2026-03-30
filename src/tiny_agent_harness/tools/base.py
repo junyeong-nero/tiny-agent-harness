@@ -3,7 +3,8 @@ from pathlib import Path
 from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
-from tiny_agent_harness.schemas import ToolRequirement
+
+from tiny_agent_harness.schemas import ToolSpec
 
 
 class ToolResult(BaseModel):
@@ -32,8 +33,8 @@ class BaseTool(ABC):
             raise ValueError(f"path '{path}' escapes the workspace root")
         return candidate
 
-    def requirements(self) -> ToolRequirement:
-        return ToolRequirement(
+    def requirements(self) -> ToolSpec:
+        return ToolSpec(
             name=self.name,
             description=self.description,
             arguments_schema=self.args_model.model_json_schema(),

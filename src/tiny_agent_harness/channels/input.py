@@ -1,7 +1,7 @@
 from itertools import count
 from tiny_agent_harness.channels.queue import IngressQueue
 from tiny_agent_harness.schemas import InputRequest
-from tiny_agent_harness.schemas.runtime import RunRequest
+from tiny_agent_harness.schemas.agents import RunRequest
 
 
 class InputChannel:

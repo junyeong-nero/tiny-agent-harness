@@ -56,7 +56,9 @@ class LLMClient:
             "executor": self.models.executor,
             "reviewer": self.models.reviewer,
         }
-        return self.provider.resolve_model(model_by_agent[agent_name] or self.models.default)
+        return self.provider.resolve_model(
+            model_by_agent[agent_name] or self.models.default
+        )
 
     def _prepare_messages(self, messages: Sequence[ChatMessage]) -> list[ChatMessage]:
         prepared_messages = [dict(message) for message in messages]
@@ -68,7 +70,9 @@ class LLMClient:
         response_model: type[BaseModel],
     ) -> list[ChatMessage]:
         prepared_messages = self._prepare_messages(messages)
-        schema_json = json.dumps(response_model.model_json_schema(), indent=2, ensure_ascii=True)
+        schema_json = json.dumps(
+            response_model.model_json_schema(), indent=2, ensure_ascii=True
+        )
         instruction = JSON_RESPONSE_INSTRUCTION.format(schema=schema_json)
 
         if prepared_messages and prepared_messages[0]["role"] == "system":
@@ -92,7 +96,10 @@ class LLMClient:
             kind="llm_request",
             agent_name=agent_name,
             message="sending request",
-            data={"model": resolved_model, "messages": [dict(message) for message in messages]},
+            data={
+                "model": resolved_model,
+                "messages": [dict(message) for message in messages],
+            },
         )
         try:
             response = self.provider.chat(messages=messages, model=resolved_model)
@@ -173,4 +180,6 @@ class LLMClient:
             except RuntimeError as exc:
                 last_error = exc
 
-        raise RuntimeError("structured llm request failed after retries") from last_error
+        raise RuntimeError(
+            "structured llm request failed after retries"
+        ) from last_error
