@@ -1,3 +1,4 @@
+from importlib.resources import files
 from pathlib import Path
 from typing import Any
 
@@ -114,7 +115,16 @@ class AppConfig(BaseModel):
         return value.strip()
 
 
-def load_config(path: str | Path = "config.yaml") -> AppConfig:
+def _load_raw_config(path: str | Path | None) -> dict[str, Any]:
+    if path is None:
+        with files("tiny_agent_harness").joinpath("default_config.yaml").open(
+            "r", encoding="utf-8"
+        ) as f:
+            raw = yaml.safe_load(f) or {}
+        if not isinstance(raw, dict):
+            raise ValueError("config root must be a mapping")
+        return raw
+
     config_path = Path(path)
     if not config_path.exists():
         raise FileNotFoundError(f"config file not found: {config_path}")
@@ -124,6 +134,11 @@ def load_config(path: str | Path = "config.yaml") -> AppConfig:
 
     if not isinstance(raw, dict):
         raise ValueError("config root must be a mapping")
+    return raw
+
+
+def load_config(path: str | Path | None = None) -> AppConfig:
+    raw = _load_raw_config(path)
 
     try:
         return AppConfig.model_validate(raw)

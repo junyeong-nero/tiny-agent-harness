@@ -1,7 +1,7 @@
+import argparse
 import json
-import sys
 from pathlib import Path
-from typing import Callable
+from typing import Callable, Sequence
 
 from tiny_agent_harness.harness import TinyHarness
 from tiny_agent_harness.schemas import (
@@ -64,17 +64,48 @@ def console_output_handler(_: str, event: OutputEvent) -> None:
     print(event.payload.result.summary)
 
 
-def main() -> int:
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        prog="tiny-agent",
+        description="Run the tiny-agent harness against a workspace.",
+    )
+    parser.add_argument(
+        "--config",
+        type=Path,
+        default=None,
+        help="Path to a YAML config file. Defaults to the packaged config.",
+    )
+    parser.add_argument(
+        "--workspace",
+        type=Path,
+        default=None,
+        help="Workspace root to expose to tools. Defaults to the current directory.",
+    )
+    parser.add_argument(
+        "prompt",
+        nargs="*",
+        help="Optional one-shot prompt. If omitted, starts interactive mode.",
+    )
+    return parser
 
-    project_root = Path(__file__).resolve().parents[1]
-    config = load_config(project_root / "config.yaml")
+
+def main(argv: Sequence[str] | None = None) -> int:
+    args = build_parser().parse_args(list(argv) if argv is not None else None)
+    config = load_config(args.config)
+    workspace_root = (args.workspace or Path.cwd()).resolve()
 
     harness = TinyHarness(
         config=config,
-        workspace_root=str(project_root),
+        workspace_root=str(workspace_root),
     )
     harness.ch_output.add_channel("console", console_output_handler)
     harness.ch_listener.add_channel("console", console_listener)
+
+    prompt = " ".join(args.prompt).strip()
+    if prompt:
+        harness.ch_input.queue(prompt)
+        harness.run()
+        return 0
 
     print("tiny-agent interactive mode (type 'exit' or press Ctrl+D to quit)")
     while True:
@@ -96,4 +127,4 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

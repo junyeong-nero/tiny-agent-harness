@@ -1,0 +1,35 @@
+provider: openai
+
+models:
+    default: gpt-4o-mini
+    orchestrator: gpt-4o-mini
+    executor: gpt-4o-mini
+    reviewer: gpt-4o-mini
+
+llm:
+    max_retries: 10
+
+runtime:
+    orchestrator_max_tool_steps: 10
+    executor_max_tool_steps: 10
+    reviewer_max_tool_steps: 10
+
+tools:
+    orchestrator:
+        - bash
+        - read_file
+        - search
+        - list_files
+        - apply_patch
+        - search
+    executor:
+        - bash
+        - read_file
+        - search
+        - list_files
+        - apply_patch
+    reviewer:
+        - read_file
+        - search
+        - list_files
+        - git_diff
