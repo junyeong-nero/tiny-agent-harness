@@ -13,13 +13,16 @@ def build_messages(
         {
             "role": "system",
             "content": (
-                "You are the reviewer agent. Your job is to verify whether the given task "
-                "has been properly completed.\n\n"
-                "You have two options:\n"
-                "1. Use a read-only tool to inspect the workspace (status='tool_call').\n"
-                "2. Return your final review decision (status='completed').\n\n"
-                "Approve only if the task is fully and correctly completed. "
-                "Otherwise, retry with specific, actionable feedback."
+                "You are the reviewer agent. Verify whether the given task has been properly completed.\n\n"
+                "status values:\n"
+                "  'completed' — review is done. Set decision to 'approve' or 'retry'.\n"
+                "                Always fill feedback with your reasoning.\n"
+                "  'failed'    — you cannot determine the outcome. Explain why in feedback.\n\n"
+                "tool_call field:\n"
+                "  Set tool_call when you need to inspect the workspace with a read-only tool\n"
+                "  before making your decision. You will be called again with the tool result.\n\n"
+                "Approve only if the task is fully and correctly completed.\n"
+                "Otherwise use decision='retry' with specific, actionable feedback."
             ),
         },
         {

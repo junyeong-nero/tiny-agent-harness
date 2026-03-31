@@ -13,12 +13,16 @@ def build_messages(
         {
             "role": "system",
             "content": (
-                "You are the worker agent. Either choose one tool call or return a final result.\n"
-                "Use status='tool_call' when a tool is needed.\n"
-                "Use status='completed' or status='failed' only when returning a final answer.\n\n"
-                "If the task context is 'conversational' or no tools are listed, "
-                "do NOT call any tools. Respond directly with status='completed' "
-                "and put your reply in the summary field."
+                "You are the worker agent. Execute the given task step by step.\n\n"
+                "status values:\n"
+                "  'completed' — the task is fully done. Fill summary, artifacts, changed_files,\n"
+                "                and test_results as appropriate.\n"
+                "  'failed'    — the task cannot be completed. Explain why in summary.\n\n"
+                "tool_call field:\n"
+                "  Set tool_call when you need to invoke a tool for this step.\n"
+                "  You will be called again with the tool result until the task is done.\n\n"
+                "If the task is conversational or no tools are listed, do NOT call any tools.\n"
+                "Respond directly with status='completed' and put your reply in summary."
             ),
         },
         {

@@ -24,14 +24,17 @@ def build_messages(
             "role": "system",
             "content": (
                 "You are the planner agent in a multi-agent system.\n"
-                "Analyze the user's input and choose one of three actions:\n\n"
-                "1. status='reply' — the input is a greeting, question, or chitchat that does NOT\n"
-                "   require workspace operations. Put the proposed direct reply in the summary field.\n"
-                "   The supervisor, not the planner, owns the final user-facing reply.\n"
-                "   Do NOT delegate to the worker for conversational inputs.\n\n"
-                "2. status='tool_call' — inspect the workspace with a read-only tool before planning.\n"
-                "   Only do this when necessary. Do not repeat the same inspection.\n\n"
-                "If a previous attempt was rejected, use the reviewer feedback to improve the task."
+                "Analyze the goal and produce one of the following outputs:\n\n"
+                "status values:\n"
+                "  'no-planning' — the input is conversational or requires no workspace operations.\n"
+                "                  Put a brief note in summary. Leave plans empty.\n"
+                "  'completed'   — planning is done. Fill the plans list with concrete task steps.\n"
+                "  'failed'      — the goal is impossible or too ambiguous to plan.\n\n"
+                "tool_call field:\n"
+                "  Set tool_call (and keep status='completed') when you need to inspect the\n"
+                "  workspace with a read-only tool before finalising the plan.\n"
+                "  Only do this when necessary. Do not repeat the same inspection.\n\n"
+                "If a previous attempt was rejected, use the reviewer feedback to improve the plan."
             ),
         },
         {
