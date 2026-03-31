@@ -159,6 +159,16 @@ class ConsoleRenderer:
             f"{self.style(right, '2')}"
         )
 
+    def render_logo(self) -> str:
+        logo_lines = [
+            r"   ________   ________  ________  ________  ________  ________  ________  ________  ________ ",
+            "  /        \\ /        \\/    /   \\/    /   \\/        \\/        \\/        \\/    /   \\/        \\",
+            r" /        _/_/       //         /         /         /       __/         /         /        _/",
+            r" /       / /         /         /\__      /         /       / /        _/         //       /  ",
+            r" \______/  \________/\__/_____/   \_____/\___/____/\________/\________/\__/_____/ \______/   ",
+        ]
+        return "\n".join(self.style(line, "1", "36") for line in logo_lines) + "\n"
+
     def meta(self, label: str, value: str) -> str:
         padded = f"{label:<9}"
         return f"{self.style(padded, '2', '36')} {value}"
@@ -193,27 +203,10 @@ class ConsoleRenderer:
         provider_name: str,
         default_model: str,
     ) -> str:
-        config_label = str(config_path.resolve()) if config_path else "packaged default"
-        skills_label = ", ".join(f"/{n}" for n in skill_names) if skill_names else "none"
         lines = [
-            self.rule("tiny-agent"),
-            self.meta("session", "interactive coding shell"),
             self.meta("workspace", str(workspace_root)),
-            self.meta("config", config_label),
-            self.meta("provider", provider_name),
             self.meta("model", default_model),
-            self.meta("agents", "supervisor -> planner | worker | reviewer"),
-            self.meta("skills", skills_label),
-            self.meta("planner", ", ".join(tool_access.get("planner", [])) or "none"),
-            self.meta("worker", ", ".join(tool_access.get("worker", [])) or "none"),
-            self.meta("reviewer", ", ".join(tool_access.get("reviewer", [])) or "none"),
-            self.meta(
-                "commands",
-                "/help /status /agents /tools /skills /paste /clear /exit",
-            ),
-            self.meta("enter", "prompt, then Enter to run"),
-            self.meta("paste", "use /paste for multiline drafts"),
-            self.rule(),
+            self.meta("tips", "/help, /skills"),
         ]
         return "\n".join(lines)
 
@@ -350,9 +343,7 @@ class ConsoleRenderer:
         if event.kind == "llm_response":
             action = _llm_action(event)
             if action:
-                return (
-                    f"{agent_label} {self.style('ACTION', '1', '35')} {action}"
-                )
+                return f"{agent_label} {self.style('ACTION', '1', '35')} {action}"
             return (
                 f"{agent_label} {self.style('NOTE  ', '1', '36')} {_llm_summary(event)}"
             )
@@ -658,6 +649,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         agent_models=agent_models,
     )
 
+    if getattr(renderer.stream, "isatty", lambda: False)():
+        print(renderer.render_logo(), file=renderer.stream)
     print(shell.banner(), file=renderer.stream)
     while True:
         try:

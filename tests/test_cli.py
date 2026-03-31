@@ -108,7 +108,7 @@ class TestConsoleRenderer:
 
         assert line.endswith(("x" * 240) + "...")
 
-    def test_renders_banner_with_session_metadata_and_command_hints(self):
+    def test_renders_banner_with_minimal_session_metadata(self):
         renderer = _renderer()
         banner = renderer.render_banner(
             workspace_root=Path("/tmp/project"),
@@ -119,12 +119,12 @@ class TestConsoleRenderer:
             default_model="gpt-4o-mini",
         )
 
-        assert "tiny-agent" in banner
         assert "workspace /tmp/project" in banner
-        assert "provider  openai" in banner
         assert "model     gpt-4o-mini" in banner
-        assert "commands  /help /status /agents /tools /skills /paste /clear /exit" in banner
-        assert "enter     prompt, then Enter to run" in banner
+        assert "tips      /help, /skills" in banner
+        assert "provider" not in banner
+        assert "commands" not in banner
+        assert "========" not in banner
 
     def test_renders_help_with_multiline_commands(self):
         renderer = _renderer()
