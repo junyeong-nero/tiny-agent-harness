@@ -180,6 +180,9 @@ class ConsoleRenderer:
         message = event.message.strip()
         return f"{agent_label} {self.style('INFO  ', '2')} {message}".rstrip()
 
+    def clear_screen(self) -> str:
+        return "\033[2J\033[H" if self.color else ""
+
     def render_output_event(self, event: Event) -> str:
         summary = event.payload.summary.strip() or "(no summary)"
         body = self.wrap(summary, indent="  ")
@@ -205,14 +208,6 @@ def make_console_output_handler(
         print(renderer.render_output_event(event), file=renderer.stream)
 
     return _handler
-
-
-def console_listener(_: str, event: ListenerEvent) -> None:
-    make_console_listener(ConsoleRenderer.for_stream(sys.stdout))("", event)
-
-
-def console_output_handler(_: str, event: Event) -> None:
-    make_console_output_handler(ConsoleRenderer.for_stream(sys.stdout))("", event)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -276,8 +271,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             print(renderer.render_help(), file=renderer.stream)
             continue
         if lowered in {"clear", "/clear"}:
-            if renderer.color:
-                print("\033[2J\033[H", end="", file=renderer.stream)
+            print(renderer.clear_screen(), end="", file=renderer.stream)
             print(renderer.render_banner(workspace_root, args.config), file=renderer.stream)
             continue
 
