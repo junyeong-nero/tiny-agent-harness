@@ -15,6 +15,7 @@ class ListenerEvent(BaseModel):
         "llm_error",
         "tool_call_started",
         "tool_call_finished",
+        "skill_error",
     ]
     agent: str | None = None
     message: str = ""

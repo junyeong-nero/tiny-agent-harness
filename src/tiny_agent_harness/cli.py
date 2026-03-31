@@ -111,27 +111,35 @@ class ConsoleRenderer:
             )
         return "\n".join(lines)
 
-    def render_banner(self, workspace_root: Path, config_path: Path | None) -> str:
+    def render_banner(
+        self, workspace_root: Path, config_path: Path | None, skill_names: list[str]
+    ) -> str:
         config_label = str(config_path.resolve()) if config_path else "packaged default"
+        skills_label = ", ".join(f"/{n}" for n in skill_names) if skill_names else "none"
         lines = [
             self.rule("tiny-agent"),
             self.meta("workspace", str(workspace_root)),
             self.meta("config", config_label),
             self.meta("mode", "interactive"),
             self.meta("commands", "help, clear, exit, quit"),
+            self.meta("skills", skills_label),
             self.rule(),
         ]
         return "\n".join(lines)
 
-    def render_help(self) -> str:
+    def render_help(self, skills: list[tuple[str, str]]) -> str:
         lines = [
             self.rule("commands"),
             self.meta("help", "show this help"),
             self.meta("clear", "clear the screen and redraw the banner"),
             self.meta("exit", "leave the interactive session"),
             self.meta("input", "any other text is sent to the harness"),
-            self.rule(),
         ]
+        if skills:
+            lines.append(self.rule("skills"))
+            for name, description in skills:
+                lines.append(self.meta(f"/{name}", description))
+        lines.append(self.rule())
         return "\n".join(lines)
 
     def render_listener_event(self, event: ListenerEvent) -> str | None:
@@ -139,7 +147,9 @@ class ConsoleRenderer:
             return None
 
         agent = (event.agent or "system")[:10].ljust(10)
-        agent_label = self.style(agent, "1", "36") if event.agent else self.style(agent, "2")
+        agent_label = (
+            self.style(agent, "1", "36") if event.agent else self.style(agent, "2")
+        )
 
         if event.kind == "run_started":
             return f"\n{agent_label} {self.style('RUN   ', '1', '34')} starting harness run"
@@ -151,10 +161,16 @@ class ConsoleRenderer:
             return f"{agent_label} {self.style('FAIL  ', '1', '31')} failed"
 
         if event.kind == "llm_response":
-            return f"{agent_label} {self.style('NOTE  ', '1', '36')} {_llm_summary(event)}"
+            return (
+                f"{agent_label} {self.style('NOTE  ', '1', '36')} {_llm_summary(event)}"
+            )
 
         if event.kind == "llm_error":
             message = event.message.strip() or "llm error"
+            return f"{agent_label} {self.style('ERROR ', '1', '31')} {message}"
+
+        if event.kind == "skill_error":
+            message = event.message.strip() or "skill error"
             return f"{agent_label} {self.style('ERROR ', '1', '31')} {message}"
 
         if event.kind == "tool_call_started":
@@ -170,7 +186,7 @@ class ConsoleRenderer:
             ok = bool(event.data.get("ok", False))
             status = self.style("[ok]", "32") if ok else self.style("[failed]", "31")
             content = truncate(
-                str(event.data.get("content", "") or event.data.get("error", ""))
+                str(event.data.get("content") or event.data.get("error") or "")
             )
             return (
                 f"{agent_label} {self.style('TOOL  ', '1', '33')}"
@@ -254,7 +270,10 @@ def main(argv: Sequence[str] | None = None) -> int:
         harness.run()
         return 0
 
-    print(renderer.render_banner(workspace_root, args.config), file=renderer.stream)
+    skill_names = harness.skill_runner.available_names()
+    skills = harness.skill_runner.available_skills()
+
+    print(renderer.render_banner(workspace_root, args.config, skill_names), file=renderer.stream)
     while True:
         try:
             prompt = input(f"\n{renderer.prompt()}").strip()
@@ -268,11 +287,11 @@ def main(argv: Sequence[str] | None = None) -> int:
         if lowered in {"exit", "quit"}:
             break
         if lowered in {"help", "/help"}:
-            print(renderer.render_help(), file=renderer.stream)
+            print(renderer.render_help(skills), file=renderer.stream)
             continue
         if lowered in {"clear", "/clear"}:
             print(renderer.clear_screen(), end="", file=renderer.stream)
-            print(renderer.render_banner(workspace_root, args.config), file=renderer.stream)
+            print(renderer.render_banner(workspace_root, args.config, skill_names), file=renderer.stream)
             continue
 
         harness.ch_input.queue(prompt)

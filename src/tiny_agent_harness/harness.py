@@ -14,8 +14,8 @@ from tiny_agent_harness.schemas import (
     HarnessInput,
     HarnessOutput,
     SupervisorInput,
-    SupervisorOutput,
 )
+from tiny_agent_harness.skills import SkillRunner, create_default_skills
 from tiny_agent_harness.tools import create_default_tool_caller
 
 
@@ -36,6 +36,31 @@ class TinyHarness:
             actor_permissions=config.tools.as_actor_permissions(),
             listeners=self.ch_listener,
         )
+        self.skill_runner = SkillRunner(create_default_skills())
+
+    def _resolve_task(self, query: str) -> str | None:
+        """Expands /skill-name into a prompt. Returns None and emits skill_error on failure."""
+        if not query.startswith("/"):
+            return query
+
+        parts = query[1:].split(None, 1)
+        name = parts[0]
+        args = parts[1] if len(parts) > 1 else ""
+
+        result = self.skill_runner.run(name, args)
+        if result is None:
+            self.ch_listener.call(
+                ListenerEvent(kind="skill_error", message=f"unknown skill: {name}")
+            )
+            return None
+        if not result.ok:
+            self.ch_listener.call(
+                ListenerEvent(
+                    kind="skill_error", message=f"skill error: {result.error}"
+                )
+            )
+            return None
+        return result.prompt
 
     def _run(
         self,
@@ -44,7 +69,18 @@ class TinyHarness:
 
         self.ch_listener.call(ListenerEvent(kind="run_started", message="run started"))
 
-        supervisor_input = SupervisorInput(task=harness_input.task)
+        task = self._resolve_task(harness_input.task)
+        if task is None:
+            self.ch_listener.call(
+                ListenerEvent(kind="run_failed", message="skill resolution failed")
+            )
+            return HarnessOutput(
+                task=harness_input.task,
+                summary="",
+                session_id=harness_input.session_id,
+            )
+
+        supervisor_input = SupervisorInput(task=task)
         final_run_output = supervisor_agent(
             supervisor_input,
             llm_client=self.llm_client,
