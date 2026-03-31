@@ -18,7 +18,9 @@ class BaseProvider(ABC):
         self.default_model = default_model.strip() if default_model else None
 
     def resolve_model(self, model: str | None = None) -> str:
-        resolved_model = model.strip() if isinstance(model, str) and model.strip() else self.default_model
+        resolved_model = (
+            model.strip() if isinstance(model, str) and model.strip() else self.default_model
+        )
         if not resolved_model:
             raise ValueError("model must be provided either explicitly or via default_model")
         return resolved_model

@@ -1,7 +1,7 @@
 import pytest
 from unittest.mock import MagicMock, patch, call
 
-from tiny_agent_harness.agents.supervisor.agent import SupervisorAgent, supervisor_agent, _MAX_STEPS
+from tiny_agent_harness.agents.supervisor.agent import SupervisorAgent, _MAX_STEPS
 from tiny_agent_harness.agents.supervisor.prompt import build_messages
 from tiny_agent_harness.schemas import (
     PlannerInput, PlannerOutput,
@@ -175,58 +175,63 @@ class TestSupervisorAgentRunDirect:
 # ── SupervisorAgent.run — subagent dispatch ───────────────────────────────────
 
 class TestSupervisorAgentSubagentDispatch:
-    @patch("tiny_agent_harness.agents.supervisor.agent.planner_agent")
-    def test_calls_planner_subagent(self, mock_planner):
-        mock_planner.return_value = _planner_out()
+    @patch("tiny_agent_harness.agents.supervisor.agent.PlannerAgent")
+    def test_calls_planner_subagent(self, mock_planner_agent):
+        mock_planner_agent.return_value.run.return_value = _planner_out()
         llm = _mock_llm(
             _step_call("planner", "analyze the task"),
             _step(summary="done"),
         )
-        result = SupervisorAgent(llm, _mock_tool_caller()).run(_sup_input())
+        tool_caller = _mock_tool_caller()
+        result = SupervisorAgent(llm, tool_caller).run(_sup_input())
 
-        mock_planner.assert_called_once()
-        called_input = mock_planner.call_args.args[0]
+        mock_planner_agent.assert_called_once_with(llm, tool_caller)
+        called_input = mock_planner_agent.return_value.run.call_args.args[0]
         assert isinstance(called_input, PlannerInput)
         assert called_input.task == "analyze the task"
         assert len(result.planner_outputs) == 1
 
-    @patch("tiny_agent_harness.agents.supervisor.agent.worker_agent")
-    def test_calls_worker_subagent(self, mock_worker):
-        mock_worker.return_value = _worker_out()
+    @patch("tiny_agent_harness.agents.supervisor.agent.WorkerAgent")
+    def test_calls_worker_subagent(self, mock_worker_agent):
+        mock_worker_agent.return_value.run.return_value = _worker_out()
         llm = _mock_llm(
             _step_call("worker", "implement the feature"),
             _step(summary="done"),
         )
-        result = SupervisorAgent(llm, _mock_tool_caller()).run(_sup_input())
+        tool_caller = _mock_tool_caller()
+        result = SupervisorAgent(llm, tool_caller).run(_sup_input())
 
-        mock_worker.assert_called_once()
-        called_input = mock_worker.call_args.args[0]
+        mock_worker_agent.assert_called_once_with(llm, tool_caller)
+        called_input = mock_worker_agent.return_value.run.call_args.args[0]
         assert isinstance(called_input, WorkerInput)
         assert called_input.task == "implement the feature"
         assert len(result.worker_outputs) == 1
 
-    @patch("tiny_agent_harness.agents.supervisor.agent.reviewer_agent")
-    def test_calls_reviewer_subagent(self, mock_reviewer):
-        mock_reviewer.return_value = _reviewer_out()
+    @patch("tiny_agent_harness.agents.supervisor.agent.ReviewerAgent")
+    def test_calls_reviewer_subagent(self, mock_reviewer_agent):
+        mock_reviewer_agent.return_value.run.return_value = _reviewer_out()
         llm = _mock_llm(
             _step_call("reviewer", "verify the implementation"),
             _step(summary="done"),
         )
-        result = SupervisorAgent(llm, _mock_tool_caller()).run(_sup_input())
+        tool_caller = _mock_tool_caller()
+        result = SupervisorAgent(llm, tool_caller).run(_sup_input())
 
-        mock_reviewer.assert_called_once()
-        called_input = mock_reviewer.call_args.args[0]
+        mock_reviewer_agent.assert_called_once_with(llm, tool_caller)
+        called_input = mock_reviewer_agent.return_value.run.call_args.args[0]
         assert isinstance(called_input, ReviewerInput)
         assert called_input.task == "verify the implementation"
         assert len(result.reviewer_outputs) == 1
 
-    @patch("tiny_agent_harness.agents.supervisor.agent.planner_agent")
-    @patch("tiny_agent_harness.agents.supervisor.agent.worker_agent")
-    @patch("tiny_agent_harness.agents.supervisor.agent.reviewer_agent")
-    def test_full_pipeline_planner_worker_reviewer(self, mock_reviewer, mock_worker, mock_planner):
-        mock_planner.return_value = _planner_out()
-        mock_worker.return_value = _worker_out()
-        mock_reviewer.return_value = _reviewer_out()
+    @patch("tiny_agent_harness.agents.supervisor.agent.PlannerAgent")
+    @patch("tiny_agent_harness.agents.supervisor.agent.WorkerAgent")
+    @patch("tiny_agent_harness.agents.supervisor.agent.ReviewerAgent")
+    def test_full_pipeline_planner_worker_reviewer(
+        self, mock_reviewer_agent, mock_worker_agent, mock_planner_agent
+    ):
+        mock_planner_agent.return_value.run.return_value = _planner_out()
+        mock_worker_agent.return_value.run.return_value = _worker_out()
+        mock_reviewer_agent.return_value.run.return_value = _reviewer_out()
         llm = _mock_llm(
             _step_call("planner", "plan it"),
             _step_call("worker", "do it"),
@@ -241,9 +246,12 @@ class TestSupervisorAgentSubagentDispatch:
         assert len(result.worker_outputs) == 1
         assert len(result.reviewer_outputs) == 1
 
-    @patch("tiny_agent_harness.agents.supervisor.agent.worker_agent")
-    def test_multiple_worker_calls_accumulate(self, mock_worker):
-        mock_worker.side_effect = [_worker_out(summary="step 1"), _worker_out(summary="step 2")]
+    @patch("tiny_agent_harness.agents.supervisor.agent.WorkerAgent")
+    def test_multiple_worker_calls_accumulate(self, mock_worker_agent):
+        mock_worker_agent.return_value.run.side_effect = [
+            _worker_out(summary="step 1"),
+            _worker_out(summary="step 2"),
+        ]
         llm = _mock_llm(
             _step_call("worker", "task 1"),
             _step_call("worker", "task 2"),
@@ -256,9 +264,11 @@ class TestSupervisorAgentSubagentDispatch:
         assert result.worker_outputs[0].summary == "step 1"
         assert result.worker_outputs[1].summary == "step 2"
 
-    @patch("tiny_agent_harness.agents.supervisor.agent.worker_agent")
-    def test_subagent_result_appended_to_messages(self, mock_worker):
-        mock_worker.return_value = _worker_out(summary="file written")
+    @patch("tiny_agent_harness.agents.supervisor.agent.WorkerAgent")
+    def test_subagent_result_appended_to_messages(self, mock_worker_agent):
+        mock_worker_agent.return_value.run.return_value = _worker_out(
+            summary="file written"
+        )
         llm = _mock_llm(
             _step_call("worker", "write file"),
             _step(summary="done"),
@@ -278,26 +288,11 @@ class TestSupervisorAgentSubagentDispatch:
         llm.chat_structured.return_value = always_call
         tc = _mock_tool_caller()
 
-        with patch("tiny_agent_harness.agents.supervisor.agent.worker_agent") as mock_worker:
-            mock_worker.return_value = _worker_out()
+        with patch("tiny_agent_harness.agents.supervisor.agent.WorkerAgent") as mock_worker_agent:
+            mock_worker_agent.return_value.run.return_value = _worker_out()
             SupervisorAgent(llm, tc).run(_sup_input())
 
         assert llm.chat_structured.call_count == _MAX_STEPS
-
-
-# ── supervisor_agent convenience function ────────────────────────────────────
-
-class TestSupervisorAgentFunction:
-    def test_returns_supervisor_output(self):
-        result = supervisor_agent(_sup_input(), _mock_llm(_step(summary="ok")), _mock_tool_caller())
-        assert isinstance(result, SupervisorOutput)
-        assert result.summary == "ok"
-
-    def test_equivalent_to_agent_run(self):
-        llm = _mock_llm(_step(summary="same"))
-        tc = _mock_tool_caller()
-        result = supervisor_agent(_sup_input(), llm, tc)
-        assert result.status == "completed"
 
 
 # ── build_messages prompt ─────────────────────────────────────────────────────

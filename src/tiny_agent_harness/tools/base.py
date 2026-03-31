@@ -2,19 +2,9 @@ from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel
 
-from tiny_agent_harness.schemas import ToolSpec
-
-
-class ToolResult(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    tool: str
-    ok: bool
-    content: str = ""
-    error: str | None = None
-    metadata: dict[str, Any] = Field(default_factory=dict)
+from tiny_agent_harness.schemas import ToolResult, ToolSpec
 
 
 class BaseTool(ABC):

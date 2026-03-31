@@ -4,43 +4,65 @@
 
 Application code lives under `src/tiny_agent_harness/`.
 
-- `agents/`: role-specific agent logic and prompts (`orchestrator`, `executor`, `reviewer`)
-- `llm/`: LLM client and provider factory
-- `providers/`: vendor adapters such as OpenRouter and OpenAI
-- `schemas/`: Pydantic models for config and runtime messages
-- `tools/`: workspace tools such as `bash`, `read_file`, `search`, and `git_diff`
-- `harness.py`: top-level loop orchestration
+- `agents/`: class-based agent implementations and prompts for `SupervisorAgent`, `PlannerAgent`, `WorkerAgent`, and `ReviewerAgent`
+- `agents/tool_calling_agent.py`: shared tool-calling base class used by planner/worker/reviewer
+- `agents/protocols.py`: shared protocols and prompt-formatting helpers
+- `channels/`: input/listener/output channel abstractions and the internal `IngressQueue`
+- `llm/`: `LLMClient`, provider factory, and provider implementations under `llm/providers/`
+- `schemas/`: Pydantic models for config, agent I/O, channels, skills, tools, and harness output
+- `skills/`: built-in skill registry and skill implementations
+- `tools/`: workspace tools such as `bash`, `read_file`, `search`, `list_files`, `git_diff`, and `apply_patch`
+- `harness.py`: top-level orchestration loop
+- `cli.py`: interactive CLI entry point exposed as the `tiny-agent` script
 
 Repository-level files:
 
-- `main.py`: local entry point
-- `config.yaml`: provider and model selection
-- `tests/`: `unittest`-based coverage for runtime, LLM, providers, and tools
+- `config.yaml`: local provider/model configuration
+- `refactor_plan.md`: in-repo refactor checklist
+- `tests/`: pytest-based coverage for agents, channels, CLI rendering, schema exports, and provider wiring
 
 ## Build, Test, and Development Commands
 
-- `uv sync`: install project dependencies from `pyproject.toml` and `uv.lock`
-- `python3 main.py "demo goal"`: run the harness locally
-- `python3 -m unittest tests.test_runtime`: run a focused runtime test
-- `python3 -m unittest tests.test_runtime tests.test_providers tests.test_llm_factory tests.test_llm_client tests.test_tools`: run the full test suite
+Use `uv` for local development. Prefer `uv run ...` over calling `python3` directly.
 
-Use `OPENROUTER_API_KEY` to enable live OpenRouter execution. Without an API key, the runtime should stay on its mock path.
+- `uv sync`: install project dependencies from `pyproject.toml` and `uv.lock`
+- `uv run tiny-agent --config config.yaml`: run the interactive harness
+- `uv run python -m tiny_agent_harness.cli --config config.yaml`: alternate CLI entry point
+- `PYTHONPATH=src uv run pytest`: run the full test suite
+- `PYTHONPATH=src uv run pytest tests/test_supervisor_agent.py`: run a focused test file
+
+Use `OPENROUTER_API_KEY` or `OPENAI_API_KEY` when exercising live providers. Without an API key, provider creation paths that resolve environment credentials will fail.
 
 ## Coding Style & Naming Conventions
 
-Use 4-space indentation and keep code Python 3.13-compatible. Prefer small, typed modules with explicit imports. Runtime payloads should use Pydantic models from `schemas/`. New agent-specific prompts belong next to the agent, for example `agents/executor/prompt.py`. Keep orchestration in `harness.py` and vendor-specific HTTP code in `providers/`.
+Use 4-space indentation and keep code compatible with Python 3.11+. Prefer small, typed modules with explicit imports. Runtime payloads should use Pydantic models from `schemas/`. Keep agent prompts adjacent to their agent modules, for example `agents/worker/prompt.py`. Keep orchestration in `harness.py`, LLM provider code in `llm/providers/`, and channel-specific behavior in `channels/`.
+
+When extending agents, preserve the current class-based pattern:
+
+- `SupervisorAgent` coordinates sub-agent execution directly
+- `PlannerAgent`, `WorkerAgent`, and `ReviewerAgent` inherit from `ToolCallingAgent`
+- shared typing and prompt helpers belong in `agents/protocols.py`
 
 ## Testing Guidelines
 
-Use the standard library `unittest` framework. Name test files `tests/test_<area>.py` and keep test methods descriptive, for example `test_chat_structured_retries_after_validation_failure`. Add tests for new schema validation, provider behavior, and tool execution paths. Prefer isolated temporary directories for file and git tool tests.
+Use `pytest` and keep tests in `tests/test_<area>.py`. Prefer focused unit tests around agent behavior, schema validation, CLI rendering, provider selection, and channel behavior. When imports rely on the `src/` layout, run tests as `PYTHONPATH=src uv run pytest`.
+
+Add or update tests for:
+
+- schema or export-surface changes
+- agent dispatch and tool-calling behavior
+- provider factory or provider import-path changes
+- CLI event rendering changes
+
+Prefer isolated mocks or temporary directories for tool and filesystem behavior.
 
 ## Commit & Pull Request Guidelines
 
-Commit messages should start with bracketed tags, as seen in history: `[feat]`, `[refactor]`, `[chore]`. Keep commits small and grouped by intent. Example: `[feat] Add core workspace tools and tests`.
+Commit messages should start with bracketed tags such as `[feat]`, `[refactor]`, or `[chore]`. Keep commits small and grouped by intent. Example: `[refactor] Remove agent wrapper functions`.
 
 For pull requests, include:
 
 - a short summary of behavior changes
 - affected modules or directories
-- test evidence (`python3 -m unittest ...`)
+- test evidence, for example `PYTHONPATH=src uv run pytest`
 - any required environment variables or provider assumptions

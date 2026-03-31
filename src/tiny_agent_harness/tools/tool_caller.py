@@ -1,8 +1,14 @@
 from typing import Any
 
 from tiny_agent_harness.channels.listener import ListenerChannel
-from tiny_agent_harness.schemas import ListenerEvent, ToolInput, ToolPermissionsConfig, ToolSpec
-from tiny_agent_harness.tools.base import BaseTool, ToolResult
+from tiny_agent_harness.schemas import (
+    ListenerEvent,
+    ToolInput,
+    ToolPermissionsConfig,
+    ToolResult,
+    ToolSpec,
+)
+from tiny_agent_harness.tools.base import BaseTool
 
 ToolRegistry = dict[str, BaseTool]
 ActorPermissions = dict[str, list[str]]

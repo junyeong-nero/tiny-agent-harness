@@ -1,6 +1,7 @@
 from tiny_agent_harness.channels.listener import ListenerChannel
+from tiny_agent_harness.schemas import ToolResult
 from tiny_agent_harness.tools.apply_patch import ApplyPatchTool
-from tiny_agent_harness.tools.base import BaseTool, ToolResult
+from tiny_agent_harness.tools.base import BaseTool
 from tiny_agent_harness.tools.bash import BashTool
 from tiny_agent_harness.tools.git_diff import GitDiffTool
 from tiny_agent_harness.tools.list_files import ListFilesTool

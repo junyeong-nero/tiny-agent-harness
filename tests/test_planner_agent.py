@@ -1,11 +1,16 @@
 import pytest
 from unittest.mock import MagicMock, patch
 
-from tiny_agent_harness.agents.planner.agent import PlannerAgent, planner_agent, PLANNER_TOOLS
+from tiny_agent_harness.agents.planner.agent import PlannerAgent, PLANNER_TOOLS
 from tiny_agent_harness.agents.planner.prompt import build_messages, WORKER_TOOLS
-from tiny_agent_harness.schemas import PlannerInput, PlannerOutput, ToolInput, ToolSpec
+from tiny_agent_harness.schemas import (
+    PlannerInput,
+    PlannerOutput,
+    ToolInput,
+    ToolResult,
+    ToolSpec,
+)
 from tiny_agent_harness.schemas.agents.planner import Plan
-from tiny_agent_harness.tools.base import ToolResult
 from tiny_agent_harness.tools.tool_caller import ToolCaller
 
 
@@ -197,30 +202,6 @@ class TestPlannerAgentRun:
         first_msgs = llm.chat_structured.call_args_list[0].kwargs["messages"]
         second_msgs = llm.chat_structured.call_args_list[1].kwargs["messages"]
         assert len(second_msgs) > len(first_msgs)
-
-
-# ── planner_agent convenience function ───────────────────────────────────────
-
-class TestPlannerAgentFunction:
-    @patch("tiny_agent_harness.agents.planner.agent.build_messages")
-    def test_returns_planner_output(self, mock_bm):
-        expected = _output(summary="from function")
-        mock_bm.return_value = []
-
-        result = planner_agent(_input(), _mock_llm(expected), _mock_tool_caller())
-
-        assert result.summary == "from function"
-        assert isinstance(result, PlannerOutput)
-
-    @patch("tiny_agent_harness.agents.planner.agent.build_messages")
-    def test_equivalent_to_agent_run(self, mock_bm):
-        output = _output()
-        mock_bm.return_value = []
-
-        result = planner_agent(_input(), _mock_llm(output), _mock_tool_caller())
-
-        assert result is output
-
 
 # ── build_messages prompt ─────────────────────────────────────────────────────
 

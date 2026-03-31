@@ -1,4 +1,4 @@
-from tiny_agent_harness.providers import ChatMessage
+from tiny_agent_harness.llm.providers import ChatMessage
 from tiny_agent_harness.schemas import SupervisorInput
 
 

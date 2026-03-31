@@ -1,15 +1,6 @@
 from abc import ABC, abstractmethod
 
-from pydantic import BaseModel, ConfigDict
-
-
-class SkillResult(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    skill: str
-    prompt: str
-    ok: bool
-    error: str | None = None
+from tiny_agent_harness.schemas import SkillResult
 
 
 class BaseSkill(ABC):
@@ -24,5 +15,4 @@ class BaseSkill(ABC):
 
 __all__ = [
     "BaseSkill",
-    "SkillResult",
 ]

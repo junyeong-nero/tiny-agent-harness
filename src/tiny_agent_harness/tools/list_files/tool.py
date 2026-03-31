@@ -3,7 +3,8 @@ import shutil
 import subprocess
 from pathlib import Path
 
-from tiny_agent_harness.tools.base import BaseTool, ToolResult
+from tiny_agent_harness.schemas import ToolResult
+from tiny_agent_harness.tools.base import BaseTool
 from tiny_agent_harness.tools.list_files.description import DESCRIPTION
 from tiny_agent_harness.tools.list_files.schema import ListFilesArgs
 

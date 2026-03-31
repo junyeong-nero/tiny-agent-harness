@@ -1,10 +1,15 @@
 import pytest
 from unittest.mock import MagicMock, patch
 
-from tiny_agent_harness.agents.reviewer.agent import ReviewerAgent, reviewer_agent
+from tiny_agent_harness.agents.reviewer.agent import ReviewerAgent
 from tiny_agent_harness.agents.reviewer.prompt import build_messages
-from tiny_agent_harness.schemas import ReviewerInput, ReviewerOutput, ToolInput, ToolSpec
-from tiny_agent_harness.tools.base import ToolResult
+from tiny_agent_harness.schemas import (
+    ReviewerInput,
+    ReviewerOutput,
+    ToolInput,
+    ToolResult,
+    ToolSpec,
+)
 from tiny_agent_harness.tools.tool_caller import ToolCaller
 
 
@@ -197,30 +202,6 @@ class TestReviewerAgentRun:
         first_msgs = llm.chat_structured.call_args_list[0].kwargs["messages"]
         second_msgs = llm.chat_structured.call_args_list[1].kwargs["messages"]
         assert len(second_msgs) > len(first_msgs)
-
-
-# ── reviewer_agent convenience function ──────────────────────────────────────
-
-class TestReviewerAgentFunction:
-    @patch("tiny_agent_harness.agents.reviewer.agent.build_messages")
-    def test_returns_reviewer_output(self, mock_bm):
-        expected = _output(decision="approve", feedback="from function")
-        mock_bm.return_value = []
-
-        result = reviewer_agent(_input(), _mock_llm(expected), _mock_tool_caller())
-
-        assert result.decision == "approve"
-        assert isinstance(result, ReviewerOutput)
-
-    @patch("tiny_agent_harness.agents.reviewer.agent.build_messages")
-    def test_equivalent_to_agent_run(self, mock_bm):
-        output = _output()
-        mock_bm.return_value = []
-
-        result = reviewer_agent(_input(), _mock_llm(output), _mock_tool_caller())
-
-        assert result is output
-
 
 # ── build_messages prompt ─────────────────────────────────────────────────────
 

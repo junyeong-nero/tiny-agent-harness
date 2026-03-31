@@ -2,8 +2,11 @@ from typing import Callable, Generic, TypeVar
 
 from pydantic import BaseModel
 
-from tiny_agent_harness.agents.shared import SupportsStructuredLLM, format_tool_result
-from tiny_agent_harness.providers import ChatMessage
+from tiny_agent_harness.agents.protocols import (
+    SupportsStructuredLLM,
+    format_tool_result,
+)
+from tiny_agent_harness.llm.providers import ChatMessage
 from tiny_agent_harness.schemas import ToolSpec
 from tiny_agent_harness.tools import ToolCaller
 
@@ -11,7 +14,7 @@ InputT = TypeVar("InputT", bound=BaseModel)
 OutputT = TypeVar("OutputT", bound=BaseModel)
 
 
-class BaseAgent(Generic[InputT, OutputT]):
+class ToolCallingAgent(Generic[InputT, OutputT]):
     def __init__(
         self,
         agent_name: str,

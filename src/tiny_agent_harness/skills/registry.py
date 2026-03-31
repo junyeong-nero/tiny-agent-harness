@@ -1,4 +1,5 @@
-from tiny_agent_harness.skills.base import BaseSkill, SkillResult
+from tiny_agent_harness.schemas import SkillResult
+from tiny_agent_harness.skills.base import BaseSkill
 
 SkillRegistry = dict[str, BaseSkill]
 

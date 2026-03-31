@@ -1,8 +1,7 @@
 from typing import Protocol
 
-from tiny_agent_harness.providers import ChatMessage
-from tiny_agent_harness.schemas import ToolSpec
-from tiny_agent_harness.tools import ToolResult
+from tiny_agent_harness.llm.providers import ChatMessage
+from tiny_agent_harness.schemas import ToolResult, ToolSpec
 
 
 class SupportsStructuredLLM(Protocol):

@@ -26,3 +26,8 @@ where = ["src"]
 
 [tool.setuptools.package-data]
 tiny_agent_harness = ["default_config.yaml"]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.0.2",
+]

@@ -1,6 +1,7 @@
 import subprocess
 
-from tiny_agent_harness.tools.base import BaseTool, ToolResult
+from tiny_agent_harness.schemas import ToolResult
+from tiny_agent_harness.tools.base import BaseTool
 from tiny_agent_harness.tools.git_diff.description import DESCRIPTION
 from tiny_agent_harness.tools.git_diff.schema import GitDiffArgs
 

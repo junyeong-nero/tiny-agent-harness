@@ -1,7 +1,8 @@
 import shutil
 import subprocess
 
-from tiny_agent_harness.tools.base import BaseTool, ToolResult
+from tiny_agent_harness.schemas import ToolResult
+from tiny_agent_harness.tools.base import BaseTool
 from tiny_agent_harness.tools.search.description import DESCRIPTION
 from tiny_agent_harness.tools.search.schema import SearchArgs
 

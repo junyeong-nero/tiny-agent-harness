@@ -1,5 +1,5 @@
-from tiny_agent_harness.agents.base_agent import BaseAgent
-from tiny_agent_harness.agents.shared import SupportsStructuredLLM
+from tiny_agent_harness.agents.tool_calling_agent import ToolCallingAgent
+from tiny_agent_harness.agents.protocols import SupportsStructuredLLM
 from tiny_agent_harness.agents.worker.prompt import build_messages
 from tiny_agent_harness.schemas import (
     WorkerOutput,
@@ -8,7 +8,7 @@ from tiny_agent_harness.schemas import (
 from tiny_agent_harness.tools import ToolCaller
 
 
-class WorkerAgent(BaseAgent[WorkerInput, WorkerOutput]):
+class WorkerAgent(ToolCallingAgent[WorkerInput, WorkerOutput]):
     def __init__(
         self,
         llm_client: SupportsStructuredLLM,
@@ -25,12 +25,3 @@ class WorkerAgent(BaseAgent[WorkerInput, WorkerOutput]):
 
     def run(self, subtask: WorkerInput) -> WorkerOutput:
         return super().run(subtask)
-
-
-def worker_agent(
-    worker_input: WorkerInput,
-    llm_client: SupportsStructuredLLM,
-    tool_caller: ToolCaller,
-) -> WorkerOutput:
-
-    return WorkerAgent(llm_client, tool_caller).run(worker_input)

@@ -1,10 +1,15 @@
 import pytest
 from unittest.mock import MagicMock, patch
 
-from tiny_agent_harness.agents.worker.agent import WorkerAgent, worker_agent
+from tiny_agent_harness.agents.worker.agent import WorkerAgent
 from tiny_agent_harness.agents.worker.prompt import build_messages
-from tiny_agent_harness.schemas import WorkerInput, WorkerOutput, ToolInput, ToolSpec
-from tiny_agent_harness.tools.base import ToolResult
+from tiny_agent_harness.schemas import (
+    ToolInput,
+    ToolResult,
+    ToolSpec,
+    WorkerInput,
+    WorkerOutput,
+)
 from tiny_agent_harness.tools.tool_caller import ToolCaller
 
 
@@ -202,33 +207,6 @@ class TestWorkerAgentRun:
 
         call_kwargs = llm.chat_structured.call_args.kwargs
         assert call_kwargs.get("response_model") is WorkerOutput
-
-
-# ── worker_agent convenience function ────────────────────────────────────────
-
-class TestWorkerAgentFunction:
-    @patch("tiny_agent_harness.agents.worker.agent.build_messages")
-    def test_returns_worker_output(self, mock_bm):
-        expected = _output(summary="from function")
-        mock_bm.return_value = []
-
-        result = worker_agent(_input(), _mock_llm(expected), _mock_tool_caller())
-
-        assert result.summary == "from function"
-        assert isinstance(result, WorkerOutput)
-
-    @patch("tiny_agent_harness.agents.worker.agent.build_messages")
-    def test_equivalent_to_agent_run(self, mock_bm):
-        """worker_agent() is a thin wrapper; its output matches WorkerAgent.run()."""
-        output = _output(summary="same result")
-        mock_bm.return_value = []
-        llm = _mock_llm(output)
-        tc = _mock_tool_caller()
-
-        result = worker_agent(_input(), llm, tc)
-
-        assert result is output
-
 
 # ── build_messages prompt ─────────────────────────────────────────────────────
 

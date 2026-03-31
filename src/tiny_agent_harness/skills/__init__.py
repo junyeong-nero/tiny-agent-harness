@@ -1,4 +1,5 @@
-from tiny_agent_harness.skills.base import BaseSkill, SkillResult
+from tiny_agent_harness.schemas import SkillResult
+from tiny_agent_harness.skills.base import BaseSkill
 from tiny_agent_harness.skills.commit import CommitSkill
 from tiny_agent_harness.skills.registry import SkillRegistry, SkillRunner
 

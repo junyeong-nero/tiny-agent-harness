@@ -2,7 +2,8 @@ import subprocess
 
 from tiny_agent_harness.tools.apply_patch.description import DESCRIPTION
 from tiny_agent_harness.tools.apply_patch.schema import ApplyPatchArgs
-from tiny_agent_harness.tools.base import BaseTool, ToolResult
+from tiny_agent_harness.schemas import ToolResult
+from tiny_agent_harness.tools.base import BaseTool
 
 
 class ApplyPatchTool(BaseTool):

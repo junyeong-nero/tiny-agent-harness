@@ -16,3 +16,13 @@ class ToolSpec(BaseModel):
     name: str
     description: str
     arguments_schema: dict[str, Any]
+
+
+class ToolResult(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    tool: str
+    ok: bool
+    content: str = ""
+    error: str | None = None
+    metadata: dict[str, Any] = Field(default_factory=dict)

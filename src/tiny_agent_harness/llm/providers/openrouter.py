@@ -3,7 +3,7 @@ from typing import Sequence
 
 import requests
 
-from tiny_agent_harness.providers.base_provider import BaseProvider, ChatMessage
+from tiny_agent_harness.llm.providers.base import BaseProvider, ChatMessage
 
 
 class OpenRouterProvider(BaseProvider):

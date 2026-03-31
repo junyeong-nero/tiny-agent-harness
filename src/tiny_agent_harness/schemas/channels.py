@@ -1,14 +1,6 @@
-from typing import Literal
+from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict
-
-from tiny_agent_harness.schemas.agents import (
-    PlannerOutput,
-    ReviewerOutput,
-    WorkerInput,
-    WorkerOutput,
-)
-
+from pydantic import BaseModel, ConfigDict, Field
 from tiny_agent_harness.schemas.harness import HarnessOutput, HarnessInput
 
 
@@ -34,3 +26,23 @@ class Event(BaseModel):
     session_id: str
     kind: Literal["run_result"] = "run_result"
     payload: Response
+
+
+class ListenerEvent(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    kind: Literal[
+        "run_started",
+        "run_completed",
+        "run_failed",
+        "llm_request",
+        "llm_response",
+        "llm_error",
+        "tool_call_started",
+        "tool_call_finished",
+        "skill_resolved",
+        "skill_error",
+    ]
+    agent: str | None = None
+    message: str = ""
+    data: dict[str, Any] = Field(default_factory=dict)

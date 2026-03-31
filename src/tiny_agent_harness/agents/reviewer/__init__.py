@@ -1,3 +1,3 @@
-from tiny_agent_harness.agents.reviewer.agent import reviewer_agent
+from tiny_agent_harness.agents.reviewer.agent import ReviewerAgent
 
-__all__ = ["reviewer_agent"]
+__all__ = ["ReviewerAgent"]

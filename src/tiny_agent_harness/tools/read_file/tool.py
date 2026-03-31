@@ -1,4 +1,5 @@
-from tiny_agent_harness.tools.base import BaseTool, ToolResult
+from tiny_agent_harness.schemas import ToolResult
+from tiny_agent_harness.tools.base import BaseTool
 from tiny_agent_harness.tools.read_file.description import DESCRIPTION
 from tiny_agent_harness.tools.read_file.schema import ReadFileArgs
 

@@ -1,8 +1,8 @@
-from tiny_agent_harness.agents.planner import planner_agent
-from tiny_agent_harness.agents.reviewer import reviewer_agent
-from tiny_agent_harness.agents.shared import SupportsStructuredLLM
+from tiny_agent_harness.agents.planner import PlannerAgent
+from tiny_agent_harness.agents.protocols import SupportsStructuredLLM
+from tiny_agent_harness.agents.reviewer import ReviewerAgent
 from tiny_agent_harness.agents.supervisor.prompt import build_messages
-from tiny_agent_harness.agents.worker import worker_agent
+from tiny_agent_harness.agents.worker import WorkerAgent
 from tiny_agent_harness.schemas import (
     PlannerInput,
     PlannerOutput,
@@ -36,20 +36,20 @@ class SupervisorAgent:
         reviewer_outputs: list[ReviewerOutput],
     ) -> str:
         if call.agent == "planner":
-            result = planner_agent(
-                PlannerInput(task=call.task), self.llm_client, self.tool_caller
+            result = PlannerAgent(self.llm_client, self.tool_caller).run(
+                PlannerInput(task=call.task)
             )
             planner_outputs.append(result)
             return result.model_dump_json()
         if call.agent == "worker":
-            result = worker_agent(
-                WorkerInput(task=call.task), self.llm_client, self.tool_caller
+            result = WorkerAgent(self.llm_client, self.tool_caller).run(
+                WorkerInput(task=call.task)
             )
             worker_outputs.append(result)
             return result.model_dump_json()
         if call.agent == "reviewer":
-            result = reviewer_agent(
-                ReviewerInput(task=call.task), self.llm_client, self.tool_caller
+            result = ReviewerAgent(self.llm_client, self.tool_caller).run(
+                ReviewerInput(task=call.task)
             )
             reviewer_outputs.append(result)
             return result.model_dump_json()
@@ -101,12 +101,4 @@ class SupervisorAgent:
         )
 
 
-def supervisor_agent(
-    supervisor_input: SupervisorInput,
-    llm_client: SupportsStructuredLLM,
-    tool_caller: ToolCaller,
-) -> SupervisorOutput:
-    return SupervisorAgent(llm_client, tool_caller).run(supervisor_input)
-
-
-__all__ = ["SupervisorAgent", "supervisor_agent"]
+__all__ = ["SupervisorAgent"]

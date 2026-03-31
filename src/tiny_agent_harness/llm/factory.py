@@ -2,7 +2,7 @@ import os
 
 from tiny_agent_harness.channels.listener import ListenerChannel
 from tiny_agent_harness.llm.client import LLMClient
-from tiny_agent_harness.providers import (
+from tiny_agent_harness.llm.providers import (
     BaseProvider,
     OpenAIProvider,
     OpenRouterProvider,

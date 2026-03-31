@@ -1,6 +1,6 @@
 import uuid
 
-from tiny_agent_harness.agents import supervisor_agent
+from tiny_agent_harness.agents.supervisor import SupervisorAgent
 from tiny_agent_harness.channels.input import InputChannel
 from tiny_agent_harness.channels.listener import ListenerChannel
 from tiny_agent_harness.channels.output import OutputChannel
@@ -60,6 +60,17 @@ class TinyHarness:
                 )
             )
             return None
+        self.ch_listener.call(
+            ListenerEvent(
+                kind="skill_resolved",
+                message=f"resolved skill: {name}",
+                data={
+                    "skill": name,
+                    "args": args,
+                    "prompt": result.prompt,
+                },
+            )
+        )
         return result.prompt
 
     def _run(
@@ -67,7 +78,13 @@ class TinyHarness:
         harness_input: HarnessInput,
     ) -> HarnessOutput:
 
-        self.ch_listener.call(ListenerEvent(kind="run_started", message="run started"))
+        self.ch_listener.call(
+            ListenerEvent(
+                kind="run_started",
+                message="run started",
+                data={"task": harness_input.task},
+            )
+        )
 
         task = self._resolve_task(harness_input.task)
         if task is None:
@@ -81,11 +98,10 @@ class TinyHarness:
             )
 
         supervisor_input = SupervisorInput(task=task)
-        final_run_output = supervisor_agent(
-            supervisor_input,
-            llm_client=self.llm_client,
-            tool_caller=self.tool_caller,
-        )
+        final_run_output = SupervisorAgent(
+            self.llm_client,
+            self.tool_caller,
+        ).run(supervisor_input)
 
         completion_event_kind = (
             "run_completed" if final_run_output.status == "completed" else "run_failed"
@@ -94,6 +110,10 @@ class TinyHarness:
             ListenerEvent(
                 kind=completion_event_kind,
                 message=f"run finished with status={final_run_output.status}\nsummary: {final_run_output.summary}",
+                data={
+                    "status": final_run_output.status,
+                    "summary": final_run_output.summary,
+                },
             )
         )
 

@@ -1,5 +1,5 @@
-from tiny_agent_harness.agents.shared import format_tool_catalog
-from tiny_agent_harness.providers import ChatMessage
+from tiny_agent_harness.agents.protocols import format_tool_catalog
+from tiny_agent_harness.llm.providers import ChatMessage
 from tiny_agent_harness.schemas import Config, ToolSpec, WorkerInput
 
 

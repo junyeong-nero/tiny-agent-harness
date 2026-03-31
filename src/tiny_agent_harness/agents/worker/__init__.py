@@ -1,3 +1,3 @@
-from tiny_agent_harness.agents.worker.agent import worker_agent
+from tiny_agent_harness.agents.worker.agent import WorkerAgent
 
-__all__ = ["worker_agent"]
+__all__ = ["WorkerAgent"]
