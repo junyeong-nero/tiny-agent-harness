@@ -28,7 +28,7 @@ class LLMClient:
         self,
         provider: BaseProvider,
         models: ModelsConfig,
-        max_retries: int = 2,
+        max_retries: int = 10,
         listeners: ListenerChannel | None = None,
     ) -> None:
         if max_retries < 0:

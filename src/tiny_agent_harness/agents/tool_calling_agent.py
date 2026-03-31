@@ -23,7 +23,7 @@ class ToolCallingAgent(Generic[InputT, OutputT]):
         message_builder: Callable[[InputT, list[ToolSpec]], list[ChatMessage]],
         input_schema: type[InputT],
         output_schema: type[OutputT],
-        max_tool_steps: int = 3,
+        max_tool_steps: int = 100,
         allowed_tools: list[str] | None = None,
     ):
         self.agent_name = agent_name
