@@ -10,12 +10,6 @@ models:
 llm:
     max_retries: 10
 
-runtime:
-    supervisor_max_retries: 3
-    planner_max_tool_steps: 10
-    worker_max_tool_steps: 10
-    reviewer_max_tool_steps: 10
-
 tools:
     supervisor: []
     planner:

@@ -135,9 +135,8 @@ class LLMClient:
         messages: Sequence[ChatMessage],
         agent_name: AgentName,
         model: str | None = None,
-        max_retries: int | None = None,
     ) -> str:
-        retry_limit = self.max_retries if max_retries is None else max_retries
+        retry_limit = self.max_retries
         prepared_messages = self._prepare_messages(messages=messages)
 
         last_error: Exception | None = None
@@ -159,9 +158,8 @@ class LLMClient:
         agent_name: AgentName,
         response_model: type[StructuredResponseT],
         model: str | None = None,
-        max_retries: int | None = None,
     ) -> StructuredResponseT:
-        retry_limit = self.max_retries if max_retries is None else max_retries
+        retry_limit = self.max_retries
         prepared_messages = self._prepare_structured_messages(
             messages=messages, response_model=response_model
         )

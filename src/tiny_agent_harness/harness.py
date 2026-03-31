@@ -43,26 +43,16 @@ class TinyHarness:
     ) -> HarnessOutput:
 
         self.ch_listener.call(ListenerEvent(kind="run_started", message="run started"))
-        final_run_output: SupervisorOutput = None
 
-        for _ in range(self.config.runtime.supervisor_max_retries):
-
-            supervisor_input = SupervisorInput(task=harness_input.task)
-            supervisor_output = supervisor_agent(
-                supervisor_input,
-                llm_client=self.llm_client,
-                tool_caller=self.tool_caller,
-            )
-            final_run_output = supervisor_output
-
-            if supervisor_output.status == "completed":
-                break
-
-        if final_run_output is None:
-            raise RuntimeError("supervisor did not produce an orchestration result")
+        supervisor_input = SupervisorInput(task=harness_input.task)
+        final_run_output = supervisor_agent(
+            supervisor_input,
+            llm_client=self.llm_client,
+            tool_caller=self.tool_caller,
+        )
 
         completion_event_kind = (
-            "run_completed" if supervisor_output.status == "completed" else "run_failed"
+            "run_completed" if final_run_output.status == "completed" else "run_failed"
         )
         self.ch_listener.call(
             ListenerEvent(

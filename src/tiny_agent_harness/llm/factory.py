@@ -42,7 +42,6 @@ def _resolve_api_key(provider_name: str) -> str:
 
 def create_llm_client(
     config: Config,
-    max_retries: int | None = None,
     listeners: ListenerChannel | None = None,
 ) -> LLMClient:
     provider_name = config.provider.strip().lower()
@@ -51,6 +50,6 @@ def create_llm_client(
     return LLMClient(
         provider=provider,
         models=config.models,
-        max_retries=config.llm.max_retries if max_retries is None else max_retries,
+        max_retries=config.llm.max_retries,
         listeners=listeners,
     )

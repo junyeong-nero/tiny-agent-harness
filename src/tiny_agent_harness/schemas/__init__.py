@@ -2,7 +2,6 @@ from tiny_agent_harness.schemas.config import (
     Config,
     LLMConfig,
     ModelsConfig,
-    RuntimeConfig,
     ToolPermissionsConfig,
     load_config,
 )
@@ -45,7 +44,6 @@ __all__ = [
     "ReviewerInput",
     "ReviewerOutput",
     "ReviewerStep",
-    "RuntimeConfig",
     "Response",
     "HarnessInput",
     "RunResult",

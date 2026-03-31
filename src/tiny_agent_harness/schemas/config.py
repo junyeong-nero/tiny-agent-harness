@@ -76,53 +76,6 @@ class LLMConfig(BaseModel):
         return value
 
 
-class RuntimeConfig(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    supervisor_max_retries: int = Field(
-        default=3,
-        validation_alias=AliasChoices(
-            "supervisor_max_retries", "orchestrator_max_retries"
-        ),
-    )
-    planner_max_tool_steps: int = Field(
-        default=2,
-        validation_alias=AliasChoices(
-            "planner_max_tool_steps", "orchestrator_max_tool_steps"
-        ),
-    )
-    explorer_max_tool_steps: int = 3
-    worker_max_tool_steps: int = Field(
-        default=3,
-        validation_alias=AliasChoices(
-            "worker_max_tool_steps", "executor_max_tool_steps"
-        ),
-    )
-    reviewer_max_tool_steps: int = 3
-
-    @property
-    def orchestrator_max_retries(self) -> int:
-        return self.supervisor_max_retries
-
-    @property
-    def orchestrator_max_tool_steps(self) -> int:
-        return self.planner_max_tool_steps
-
-    @field_validator(
-        "supervisor_max_retries",
-        "planner_max_tool_steps",
-        "explorer_max_tool_steps",
-        "worker_max_tool_steps",
-        "reviewer_max_tool_steps",
-        mode="before",
-    )
-    @classmethod
-    def validate_max_steps(cls, value: Any) -> int:
-        if not isinstance(value, int) or value < 1:
-            raise ValueError("value must be an integer greater than or equal to 1")
-        return value
-
-
 class ToolPermissionsConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -187,7 +140,6 @@ class Config(BaseModel):
     provider: str
     models: ModelsConfig
     llm: LLMConfig = Field(default_factory=LLMConfig)
-    runtime: RuntimeConfig = Field(default_factory=RuntimeConfig)
     tools: ToolPermissionsConfig = Field(default_factory=ToolPermissionsConfig)
 
     @field_validator("provider", mode="before")

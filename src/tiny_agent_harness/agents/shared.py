@@ -12,7 +12,6 @@ class SupportsStructuredLLM(Protocol):
         agent_name: str,
         response_model: type,
         model: str | None = None,
-        max_retries: int | None = None,
     ): ...
 
 
