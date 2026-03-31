@@ -1,103 +1,10 @@
+![[assets/banner.png]]
+
 # tiny-agent-harness
 
-`tiny-agent-harness` is a small, inspectable multi-agent runtime for working against a local workspace.
+A toy project that reverse-engineers and mimics the harness agent architecture found in tools like **OpenAI Codex CLI** and **Anthropic Claude Code** — a supervisor-led multi-agent loop that plans, executes, and reviews tasks against a local workspace.
 
-The current codebase is built around a supervisor-led pipeline:
-
-```text
-user prompt
-  -> InputChannel
-  -> TinyHarness.run()
-  -> supervisor
-  -> planner / worker / reviewer subagent calls
-  -> OutputChannel + listener events
-```
-
-It is intentionally narrow:
-
-- one packaged CLI
-- one shared tool layer over a workspace root
-- one schema-driven LLM client
-- direct provider adapters for OpenAI and OpenRouter
-- explicit Pydantic models for agent I/O, config, and events
-
-## Current Runtime
-
-The runtime entrypoint is `TinyHarness` in `src/tiny_agent_harness/harness.py`.
-
-For each queued prompt:
-
-1. `TinyHarness._run()` emits a `run_started` listener event.
-2. The harness invokes `supervisor_agent(...)`.
-3. The supervisor decides whether to:
-   - return a final answer,
-   - fail, or
-   - delegate a task to `planner`, `worker`, or `reviewer`.
-4. Delegated agents execute through the shared `ToolCaller`.
-5. Tool and LLM events are emitted through the listener channel.
-6. The final summary is published through the output channel as a `run_result`.
-
-At the harness level, the full supervisor pass is retried up to `runtime.supervisor_max_retries`.
-
-## Pipeline Details
-
-### Supervisor
-
-The supervisor is the orchestrator for the whole run.
-
-- Input: `SupervisorInput(task=...)`
-- Output: `SupervisorOutput`
-- Statuses:
-  - `subagent_call`
-  - `completed`
-  - `failed`
-
-Inside a single supervisor run, it can dispatch up to 10 subagent steps before the run is treated as failed.
-
-### Planner
-
-The planner is a tool-using analysis agent.
-
-- It receives `PlannerInput(task=...)`.
-- It can inspect the workspace with read-oriented tools.
-- It returns `PlannerOutput` with a summary and optional `plans`.
-
-### Worker
-
-The worker performs concrete workspace work.
-
-- It receives `WorkerInput(task=..., kind=...)`.
-- It can use editing and shell tools allowed by the active config.
-- It returns `WorkerOutput` including:
-  - `summary`
-  - `artifacts`
-  - `changed_files`
-  - `test_results`
-
-### Reviewer
-
-The reviewer validates the result.
-
-- It receives `ReviewerInput(task=...)`.
-- It can inspect files and diffs.
-- It returns `ReviewerOutput` with:
-  - `decision`
-  - `feedback`
-  - `status`
-
-### Shared Agent Loop
-
-`planner`, `worker`, and `reviewer` all run through `BaseAgent`.
-
-That shared loop:
-
-- builds a role-specific prompt,
-- asks the LLM for structured JSON,
-- executes a requested tool call when present,
-- feeds the tool result back into the conversation,
-- stops when the agent returns without a `tool_call`.
-
-Today, those agents use an internal default limit of 3 tool-assisted steps each.
+Built to be small and readable. Every layer (LLM client, tool caller, agent loop, channels) is explicit and inspectable, with no hidden magic.
 
 ## Architecture
 
@@ -117,81 +24,82 @@ graph TD
     SR --> OC["OutputChannel"]
 ```
 
-This is not a hard-coded linear `planner -> worker -> reviewer` chain.
-The supervisor chooses which subagent to call next and can call the same type more than once.
+The supervisor is not a fixed `planner -> worker -> reviewer` chain.
+It chooses which subagent to call next and can call the same type more than once.
 
-## Repository Layout
+## Quick Start
 
-```text
-src/
-  tiny_agent_harness/
-    agents/
-      planner/
-      reviewer/
-      supervisor/
-      worker/
-    channels/
-    llm/
-    providers/
-    schemas/
-    tools/
-    cli.py
-    default_config.yaml
-    harness.py
-tests/
-  test_cli.py
-  test_planner_agent.py
-  test_reviewer_agent.py
-  test_supervisor_agent.py
-  test_worker_agent.py
-config.yaml
+Install directly from GitHub — no clone needed:
+
+```bash
+uv pip install git+https://github.com/junyeong-nero/tiny-agent-harness.git
+export OPENAI_API_KEY=your_key_here
+tiny-agent --workspace .
 ```
 
-## Built-in Tools
+For OpenRouter:
 
-The default tool registry includes:
+```bash
+uv pip install git+https://github.com/junyeong-nero/tiny-agent-harness.git
+export OPENROUTER_API_KEY=your_key_here
+tiny-agent --workspace . --config config.yaml
+```
 
-- `bash`
-- `read_file`
-- `search`
-- `list_files`
-- `apply_patch`
-- `git_diff`
+## Usage
 
-Actor permissions are enforced by `ToolCaller` using the active config.
+### CLI
 
-The packaged default config currently grants:
+```bash
+# Interactive mode
+tiny-agent --workspace .
 
-- `supervisor`: no direct tools
-- `planner`: `list_files`, `search`
-- `worker`: `bash`, `read_file`, `search`, `list_files`, `apply_patch`
-- `reviewer`: `read_file`, `search`, `list_files`, `git_diff`
+# One-shot prompt
+tiny-agent --workspace . "inspect this repository and summarize the architecture"
 
-## CLI
+# With a custom config
+tiny-agent --workspace . --config config.yaml
+```
 
-The packaged CLI entrypoint is `tiny-agent`, backed by `src/tiny_agent_harness/cli.py`.
-
-Interactive mode now provides:
+Interactive mode provides:
 
 - a banner showing workspace, config, and command hints
-- structured live event lines such as `RUN`, `NOTE`, `TOOL`, `DONE`, `FAIL`
+- structured live event lines: `RUN`, `NOTE`, `TOOL`, `DONE`, `FAIL`
 - a formatted final result block
-- built-in commands:
-  - `help`
-  - `clear`
-  - `exit`
-  - `quit`
+- built-in commands: `help`, `clear`, `exit`, `quit`
 
 Color output is enabled only when stdout is a TTY. Set `NO_COLOR=1` to force plain output.
 
-## Configuration
+### Programmatic Usage
 
-Configuration is loaded from:
+```python
+from tiny_agent_harness.harness import TinyHarness
+from tiny_agent_harness.schemas import load_config
 
-- `--config <path>` when provided
-- otherwise the packaged `default_config.yaml`
+config = load_config("config.yaml")
+harness = TinyHarness(config=config, workspace_root=".")
 
-Current default shape:
+harness.ch_output.add_channel(
+    "print",
+    lambda _, event: print(event.payload.summary),
+)
+
+harness.ch_input.queue("inspect the repository and summarize the current pipeline")
+harness.run()
+```
+
+To collect listener events:
+
+```python
+events = []
+harness.ch_listener.add_channel(
+    "capture",
+    lambda _, event: events.append(event),
+)
+```
+
+### Configuration
+
+Configuration is loaded from `--config <path>`, or the packaged `default_config.yaml` if omitted.
 
 ```yaml
 provider: openai
@@ -230,133 +138,154 @@ tools:
     - git_diff
 ```
 
-### Backward-Compatible Aliases
+#### Backward-Compatible Aliases
 
-The config schema still accepts some older names:
+- `orchestrator` → `planner`
+- `executor` → `worker`
+- `orchestrator_max_retries` → `supervisor_max_retries`
+- `orchestrator_max_tool_steps` → `planner_max_tool_steps`
+- `executor_max_tool_steps` → `worker_max_tool_steps`
 
-- `orchestrator` as an alias for `planner`
-- `executor` as an alias for `worker`
-- `orchestrator_max_retries` as an alias for `supervisor_max_retries`
-- `orchestrator_max_tool_steps` as an alias for `planner_max_tool_steps`
-- `executor_max_tool_steps` as an alias for `worker_max_tool_steps`
+## How It Works
 
-## Running Locally
+### Runtime Flow
 
-1. Install dependencies:
+For each queued prompt:
+
+1. `TinyHarness._run()` emits a `run_started` event.
+2. The harness invokes `supervisor_agent(...)`.
+3. The supervisor decides whether to return a final answer, fail, or delegate to a subagent.
+4. Delegated agents execute through the shared `ToolCaller`.
+5. Tool and LLM events are emitted through the listener channel.
+6. The final summary is published through the output channel as a `run_result`.
+
+The full supervisor pass is retried up to `runtime.supervisor_max_retries` on failure.
+
+### Pipeline Agents
+
+#### Supervisor
+
+Orchestrates the entire run. Dispatches up to 10 subagent steps per run before treating it as failed.
+
+- Input: `SupervisorInput(task=...)`
+- Output: `SupervisorOutput` with status `subagent_call | completed | failed`
+
+#### Planner
+
+Read-only analysis agent. Inspects the workspace and produces a structured plan.
+
+- Input: `PlannerInput(task=...)`
+- Output: `PlannerOutput` with `summary` and optional `plans`
+- Tools: `list_files`, `search`
+
+#### Worker
+
+Performs concrete workspace edits and shell commands.
+
+- Input: `WorkerInput(task=..., kind=...)`
+- Output: `WorkerOutput` with `summary`, `artifacts`, `changed_files`, `test_results`
+- Tools: `bash`, `read_file`, `search`, `list_files`, `apply_patch`
+
+#### Reviewer
+
+Validates the worker's output.
+
+- Input: `ReviewerInput(task=...)`
+- Output: `ReviewerOutput` with `decision`, `feedback`, `status`
+- Tools: `read_file`, `search`, `list_files`, `git_diff`
+
+#### Shared Agent Loop
+
+All three subagents run through `BaseAgent`, which:
+
+- builds a role-specific prompt,
+- asks the LLM for structured JSON,
+- executes a tool call when present,
+- feeds the result back into the conversation,
+- stops when no `tool_call` is returned.
+
+### Built-in Tools
+
+| Tool | Description |
+|------|-------------|
+| `bash` | Run shell commands |
+| `read_file` | Read a file from the workspace |
+| `search` | Search file contents |
+| `list_files` | List files in a directory |
+| `apply_patch` | Apply a unified diff patch |
+| `git_diff` | Show git diff output |
+
+### Events
+
+The listener channel emits:
+
+- `run_started`, `run_completed`, `run_failed`
+- `llm_request`, `llm_response`, `llm_error`
+- `tool_call_started`, `tool_call_finished`
+
+The output channel emits `run_result` events whose payload is a `Response`.
+
+### Repository Layout
+
+```text
+src/
+  tiny_agent_harness/
+    agents/
+      planner/
+      reviewer/
+      supervisor/
+      worker/
+    channels/
+    llm/
+    providers/
+    schemas/
+    tools/
+    cli.py
+    default_config.yaml
+    harness.py
+tests/
+  test_cli.py
+  test_planner_agent.py
+  test_reviewer_agent.py
+  test_supervisor_agent.py
+  test_worker_agent.py
+config.yaml
+```
+
+## Development
+
+### From Source
 
 ```bash
+git clone https://github.com/junyeong-nero/tiny-agent-harness.git
+cd tiny-agent-harness
 uv sync
-```
-
-2. Export an API key for the selected provider:
-
-```bash
 export OPENAI_API_KEY=your_key_here
-```
-
-For OpenRouter:
-
-```bash
-export OPENROUTER_API_KEY=your_key_here
-```
-
-3. Start the interactive CLI:
-
-```bash
 uv run tiny-agent --workspace .
 ```
 
-4. Or run a one-shot prompt:
-
-```bash
-uv run tiny-agent --workspace . "inspect this repository and summarize the architecture"
-```
-
-To use a specific config file:
-
-```bash
-uv run tiny-agent --workspace . --config config.yaml
-```
-
-If you prefer invoking the module directly:
+To invoke the module directly:
 
 ```bash
 env PYTHONPATH=src uv run python -m tiny_agent_harness.cli --workspace .
 ```
 
-## Programmatic Usage
-
-The stable entrypoint today is `TinyHarness`, not `run_harness()`.
-
-Minimal example:
-
-```python
-from tiny_agent_harness.harness import TinyHarness
-from tiny_agent_harness.schemas import load_config
-
-config = load_config("config.yaml")
-harness = TinyHarness(config=config, workspace_root=".")
-
-harness.ch_output.add_channel(
-    "print",
-    lambda _, event: print(event.payload.summary),
-)
-
-harness.ch_input.queue("inspect the repository and summarize the current pipeline")
-harness.run()
-```
-
-To collect listener events:
-
-```python
-events = []
-harness.ch_listener.add_channel(
-    "capture",
-    lambda _, event: events.append(event),
-)
-```
-
-## Events
-
-The listener channel emits:
-
-- `run_started`
-- `run_completed`
-- `run_failed`
-- `llm_request`
-- `llm_response`
-- `llm_error`
-- `tool_call_started`
-- `tool_call_finished`
-
-The output channel emits `run_result` events whose payload is a `Response`.
-
-## Testing
-
-Run the full suite with:
+### Testing
 
 ```bash
 env PYTHONPATH=src uv run pytest
 ```
 
-Run a focused CLI regression test with:
-
 ```bash
 env PYTHONPATH=src uv run pytest tests/test_cli.py
 ```
 
-Current test coverage in the repository focuses on:
+Test coverage focuses on `SupervisorAgent`, `PlannerAgent`, `WorkerAgent`, `ReviewerAgent`, and CLI rendering.
 
-- `SupervisorAgent`
-- `PlannerAgent`
-- `WorkerAgent`
-- `ReviewerAgent`
-- CLI rendering
+### Current Limitations
 
-## Current Limitations
-
-- The runtime config schema includes per-agent tool-step settings, but the current agent classes still use internal default step limits rather than reading those config values.
-- The supervisor's internal subagent loop limit is currently hard-coded to 10.
-- `explorer` support exists in the config and model routing layer, but there is no dedicated explorer agent module in the current runtime.
-- The CLI requires a real provider API key because `create_llm_client()` resolves credentials eagerly.
-- Provider support is currently limited to OpenAI and OpenRouter chat-completions style APIs.
+- Per-agent `max_tool_steps` config values are not yet read by agent classes; internal defaults are used.
+- The supervisor's subagent loop limit is hard-coded to 10.
+- `explorer` support exists in config and model routing, but no explorer agent module exists yet.
+- The CLI requires a real provider API key — `create_llm_client()` resolves credentials eagerly.
+- Provider support is limited to OpenAI and OpenRouter chat-completions style APIs.
