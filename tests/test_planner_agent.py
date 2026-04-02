@@ -2,7 +2,7 @@ import pytest
 from unittest.mock import MagicMock, patch
 
 from tiny_agent_harness.agents.planner.agent import PlannerAgent, PLANNER_TOOLS
-from tiny_agent_harness.agents.planner.prompt import build_messages, WORKER_TOOLS
+from tiny_agent_harness.agents.planner.prompt import build_messages
 from tiny_agent_harness.schemas import (
     PlannerInput,
     PlannerOutput,
