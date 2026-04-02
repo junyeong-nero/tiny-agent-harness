@@ -9,6 +9,8 @@ from tiny_agent_harness.schemas.channels import Request, Event, Response, Listen
 from tiny_agent_harness.schemas.agents import (
     PlannerInput,
     PlannerOutput,
+    ExploreInput,
+    ExploreOutput,
     WorkerInput,
     WorkerOutput,
     VerifierInput,
@@ -33,6 +35,8 @@ __all__ = [
     "ListenerEvent",
     "PlannerInput",
     "PlannerOutput",
+    "ExploreInput",
+    "ExploreOutput",
     "WorkerInput",
     "WorkerOutput",
     "VerifierInput",

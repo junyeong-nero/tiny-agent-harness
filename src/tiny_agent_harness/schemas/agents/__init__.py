@@ -2,6 +2,10 @@ from tiny_agent_harness.schemas.agents.planner import (
     PlannerInput,
     PlannerOutput,
 )
+from tiny_agent_harness.schemas.agents.explore import (
+    ExploreInput,
+    ExploreOutput,
+)
 from tiny_agent_harness.schemas.agents.worker import (
     WorkerInput,
     WorkerOutput,
