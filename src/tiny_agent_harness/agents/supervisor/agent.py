@@ -14,7 +14,7 @@ from tiny_agent_harness.schemas import (
     WorkerOutput,
 )
 from tiny_agent_harness.schemas.agents.supervisor import SubAgentCall
-from tiny_agent_harness.tools import ToolCaller
+from tiny_agent_harness.tools import ToolExecutor
 
 _MAX_STEPS = 10
 
@@ -23,10 +23,10 @@ class SupervisorAgent:
     def __init__(
         self,
         llm_client: SupportsStructuredLLM,
-        tool_caller: ToolCaller,
+        tool_executor: ToolExecutor,
     ) -> None:
         self.llm_client = llm_client
-        self.tool_caller = tool_caller
+        self.tool_executor = tool_executor
 
     def _dispatch(
         self,
@@ -36,19 +36,19 @@ class SupervisorAgent:
         reviewer_outputs: list[ReviewerOutput],
     ) -> str:
         if call.agent == "planner":
-            result = PlannerAgent(self.llm_client, self.tool_caller).run(
+            result = PlannerAgent(self.llm_client, self.tool_executor).run(
                 PlannerInput(task=call.task)
             )
             planner_outputs.append(result)
             return result.model_dump_json()
         if call.agent == "worker":
-            result = WorkerAgent(self.llm_client, self.tool_caller).run(
+            result = WorkerAgent(self.llm_client, self.tool_executor).run(
                 WorkerInput(task=call.task)
             )
             worker_outputs.append(result)
             return result.model_dump_json()
         if call.agent == "reviewer":
-            result = ReviewerAgent(self.llm_client, self.tool_caller).run(
+            result = ReviewerAgent(self.llm_client, self.tool_executor).run(
                 ReviewerInput(task=call.task)
             )
             reviewer_outputs.append(result)

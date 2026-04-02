@@ -623,7 +623,7 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     skills = harness.skill_runner.available_skills()
     tool_access = {
-        agent: harness.tool_caller.allowed_tool_names(actor=agent)
+        agent: harness.tool_executor.allowed_tool_names(actor=agent)
         for agent in _AGENT_ORDER
     }
     agent_models = {

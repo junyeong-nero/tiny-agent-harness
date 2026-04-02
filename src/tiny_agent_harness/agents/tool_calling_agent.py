@@ -8,7 +8,7 @@ from tiny_agent_harness.agents.protocols import (
 )
 from tiny_agent_harness.llm.providers import ChatMessage
 from tiny_agent_harness.schemas import ToolSpec
-from tiny_agent_harness.tools import ToolCaller
+from tiny_agent_harness.tools import ToolExecutor
 
 InputT = TypeVar("InputT", bound=BaseModel)
 OutputT = TypeVar("OutputT", bound=BaseModel)
@@ -19,7 +19,7 @@ class ToolCallingAgent(Generic[InputT, OutputT]):
         self,
         agent_name: str,
         llm_client: SupportsStructuredLLM,
-        tool_caller: ToolCaller,
+        tool_executor: ToolExecutor,
         message_builder: Callable[[InputT, list[ToolSpec]], list[ChatMessage]],
         input_schema: type[InputT],
         output_schema: type[OutputT],
@@ -28,7 +28,7 @@ class ToolCallingAgent(Generic[InputT, OutputT]):
     ):
         self.agent_name = agent_name
         self.client = llm_client
-        self.tool_caller = tool_caller
+        self.tool_executor = tool_executor
         self.message_builder = message_builder
         self.input_schema = input_schema
         self.output_schema = output_schema
@@ -41,7 +41,7 @@ class ToolCallingAgent(Generic[InputT, OutputT]):
     def run(self, data: InputT) -> OutputT:
         self.input_schema.model_validate(data.model_dump())
         allowed = self._get_allowed_tools(data)
-        tool_specs = self.tool_caller.available_tool_specs(
+        tool_specs = self.tool_executor.available_tool_specs(
             actor=self.agent_name,
             allowed_tool_names=allowed,
         )
@@ -61,7 +61,7 @@ class ToolCallingAgent(Generic[InputT, OutputT]):
             if not getattr(result, "tool_call", None):
                 break
 
-            tool_result = self.tool_caller.run_call(
+            tool_result = self.tool_executor.run_call(
                 result.tool_call,
                 actor=self.agent_name,
                 allowed_tool_names=allowed,

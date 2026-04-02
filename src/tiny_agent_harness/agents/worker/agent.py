@@ -5,19 +5,19 @@ from tiny_agent_harness.schemas import (
     WorkerOutput,
     WorkerInput,
 )
-from tiny_agent_harness.tools import ToolCaller
+from tiny_agent_harness.tools import ToolExecutor
 
 
 class WorkerAgent(ToolCallingAgent[WorkerInput, WorkerOutput]):
     def __init__(
         self,
         llm_client: SupportsStructuredLLM,
-        tool_caller: ToolCaller,
+        tool_executor: ToolExecutor,
     ):
         super().__init__(
             agent_name="worker",
             llm_client=llm_client,
-            tool_caller=tool_caller,
+            tool_executor=tool_executor,
             message_builder=build_messages,
             input_schema=WorkerInput,
             output_schema=WorkerOutput,

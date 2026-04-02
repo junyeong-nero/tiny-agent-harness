@@ -11,7 +11,7 @@ from tiny_agent_harness.schemas import (
     ToolSpec,
 )
 from tiny_agent_harness.schemas.agents.planner import Plan
-from tiny_agent_harness.tools.tool_caller import ToolCaller
+from tiny_agent_harness.tools.tool_executor import ToolExecutor
 
 
 # ── helpers ───────────────────────────────────────────────────────────────────
@@ -31,8 +31,8 @@ def _mock_llm(return_value=None) -> MagicMock:
     return llm
 
 
-def _mock_tool_caller(specs=None) -> MagicMock:
-    tc = MagicMock(spec=ToolCaller)
+def _mock_tool_executor(specs=None) -> MagicMock:
+    tc = MagicMock(spec=ToolExecutor)
     tc.available_tool_specs.return_value = specs or []
     return tc
 
@@ -88,21 +88,21 @@ class TestPlannerOutput:
 
 class TestPlannerAgentInit:
     def test_agent_name_is_planner(self):
-        agent = PlannerAgent(_mock_llm(), _mock_tool_caller())
+        agent = PlannerAgent(_mock_llm(), _mock_tool_executor())
         assert agent.agent_name == "planner"
 
     def test_max_tool_steps_defaults_to_three(self):
-        agent = PlannerAgent(_mock_llm(), _mock_tool_caller())
+        agent = PlannerAgent(_mock_llm(), _mock_tool_executor())
         assert agent.max_tool_steps == 3
 
-    def test_stores_llm_and_tool_caller(self):
-        llm, tc = _mock_llm(), _mock_tool_caller()
+    def test_stores_llm_and_tool_executor(self):
+        llm, tc = _mock_llm(), _mock_tool_executor()
         agent = PlannerAgent(llm, tc)
         assert agent.client is llm
-        assert agent.tool_caller is tc
+        assert agent.tool_executor is tc
 
     def test_allowed_tools_set_to_planner_tools(self):
-        agent = PlannerAgent(_mock_llm(), _mock_tool_caller())
+        agent = PlannerAgent(_mock_llm(), _mock_tool_executor())
         assert set(agent.allowed_tools) == set(PLANNER_TOOLS)
 
 
@@ -114,7 +114,7 @@ class TestPlannerAgentRun:
         expected = _output(status="completed", summary="here is the plan")
         mock_bm.return_value = [{"role": "user", "content": "task"}]
 
-        result = PlannerAgent(_mock_llm(expected), _mock_tool_caller()).run(_input())
+        result = PlannerAgent(_mock_llm(expected), _mock_tool_executor()).run(_input())
 
         assert result.status == "completed"
         assert result.summary == "here is the plan"
@@ -124,7 +124,7 @@ class TestPlannerAgentRun:
         llm = _mock_llm()
         mock_bm.return_value = []
 
-        PlannerAgent(llm, _mock_tool_caller()).run(_input())
+        PlannerAgent(llm, _mock_tool_executor()).run(_input())
 
         llm.chat_structured.assert_called_once()
 
@@ -134,7 +134,7 @@ class TestPlannerAgentRun:
         final_output = _output(summary="explored and planned")
         llm = _mock_llm()
         llm.chat_structured.side_effect = [tool_output, final_output]
-        tc = _mock_tool_caller()
+        tc = _mock_tool_executor()
         tc.run_call.return_value = ToolResult(tool="list_files", ok=True, content="src/\ntests/")
         mock_bm.return_value = [{"role": "user", "content": "task"}]
 
@@ -148,7 +148,7 @@ class TestPlannerAgentRun:
     def test_stops_after_max_tool_steps(self, mock_bm):
         always_tool = _output(tool_call=ToolInput(tool="list_files", arguments={}))
         llm = _mock_llm(always_tool)
-        tc = _mock_tool_caller()
+        tc = _mock_tool_executor()
         tc.run_call.return_value = ToolResult(tool="list_files", ok=True, content="x")
         mock_bm.return_value = []
 
@@ -157,11 +157,11 @@ class TestPlannerAgentRun:
         assert llm.chat_structured.call_count == 3
 
     @patch("tiny_agent_harness.agents.planner.agent.build_messages")
-    def test_tool_caller_receives_planner_actor(self, mock_bm):
+    def test_tool_executor_receives_planner_actor(self, mock_bm):
         tool_output = _output(tool_call=ToolInput(tool="list_files", arguments={}))
         llm = _mock_llm()
         llm.chat_structured.side_effect = [tool_output, _output()]
-        tc = _mock_tool_caller()
+        tc = _mock_tool_executor()
         tc.run_call.return_value = ToolResult(tool="list_files", ok=True, content="x")
         mock_bm.return_value = []
 
@@ -174,7 +174,7 @@ class TestPlannerAgentRun:
         llm = _mock_llm()
         mock_bm.return_value = []
 
-        PlannerAgent(llm, _mock_tool_caller()).run(_input())
+        PlannerAgent(llm, _mock_tool_executor()).run(_input())
 
         assert llm.chat_structured.call_args.kwargs.get("response_model") is PlannerOutput
 
@@ -183,7 +183,7 @@ class TestPlannerAgentRun:
         llm = _mock_llm()
         mock_bm.return_value = []
 
-        PlannerAgent(llm, _mock_tool_caller()).run(_input())
+        PlannerAgent(llm, _mock_tool_executor()).run(_input())
 
         assert llm.chat_structured.call_args.kwargs.get("agent_name") == "planner"
 
@@ -193,7 +193,7 @@ class TestPlannerAgentRun:
         final_output = _output()
         llm = _mock_llm()
         llm.chat_structured.side_effect = [tool_output, final_output]
-        tc = _mock_tool_caller()
+        tc = _mock_tool_executor()
         tc.run_call.return_value = ToolResult(tool="search", ok=True, content="results")
         mock_bm.return_value = [{"role": "user", "content": "task"}]
 

@@ -16,7 +16,7 @@ from tiny_agent_harness.schemas import (
     SupervisorInput,
 )
 from tiny_agent_harness.skills import SkillRunner, create_default_skills
-from tiny_agent_harness.tools import create_default_tool_caller
+from tiny_agent_harness.tools import create_default_tool_executor
 
 
 class TinyHarness:
@@ -31,7 +31,7 @@ class TinyHarness:
         self.ch_listener = ListenerChannel()
         self.ch_output = OutputChannel()
         self.llm_client = create_llm_client(config, listeners=self.ch_listener)
-        self.tool_caller = create_default_tool_caller(
+        self.tool_executor = create_default_tool_executor(
             workspace_root=workspace_root,
             actor_permissions=config.tools.as_actor_permissions(),
             listeners=self.ch_listener,
@@ -100,7 +100,7 @@ class TinyHarness:
         supervisor_input = SupervisorInput(task=task)
         final_run_output = SupervisorAgent(
             self.llm_client,
-            self.tool_caller,
+            self.tool_executor,
         ).run(supervisor_input)
 
         completion_event_kind = (

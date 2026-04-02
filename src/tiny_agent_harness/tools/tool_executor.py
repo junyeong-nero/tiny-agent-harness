@@ -14,7 +14,7 @@ ToolRegistry = dict[str, BaseTool]
 ActorPermissions = dict[str, list[str]]
 
 
-class ToolCaller:
+class ToolExecutor:
     def __init__(
         self,
         tools: ToolRegistry,
@@ -31,7 +31,7 @@ class ToolCaller:
         tools: ToolRegistry,
         config: ToolPermissionsConfig,
         ch_listener: ListenerChannel | None = None,
-    ) -> "ToolCaller":
+    ) -> "ToolExecutor":
         return cls(
             tools=tools,
             actor_permissions=config.as_actor_permissions(),

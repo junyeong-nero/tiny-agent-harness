@@ -10,7 +10,7 @@ from tiny_agent_harness.schemas import (
     WorkerInput,
     WorkerOutput,
 )
-from tiny_agent_harness.tools.tool_caller import ToolCaller
+from tiny_agent_harness.tools.tool_executor import ToolExecutor
 
 
 # ── helpers ───────────────────────────────────────────────────────────────────
@@ -30,8 +30,8 @@ def _mock_llm(return_value=None) -> MagicMock:
     return llm
 
 
-def _mock_tool_caller(specs=None) -> MagicMock:
-    tc = MagicMock(spec=ToolCaller)
+def _mock_tool_executor(specs=None) -> MagicMock:
+    tc = MagicMock(spec=ToolExecutor)
     tc.available_tool_specs.return_value = specs or []
     return tc
 
@@ -94,18 +94,18 @@ class TestWorkerOutput:
 
 class TestWorkerAgentInit:
     def test_agent_name_is_worker(self):
-        agent = WorkerAgent(_mock_llm(), _mock_tool_caller())
+        agent = WorkerAgent(_mock_llm(), _mock_tool_executor())
         assert agent.agent_name == "worker"
 
     def test_max_tool_steps_defaults_to_three(self):
-        agent = WorkerAgent(_mock_llm(), _mock_tool_caller())
+        agent = WorkerAgent(_mock_llm(), _mock_tool_executor())
         assert agent.max_tool_steps == 3
 
-    def test_stores_llm_and_tool_caller(self):
-        llm, tc = _mock_llm(), _mock_tool_caller()
+    def test_stores_llm_and_tool_executor(self):
+        llm, tc = _mock_llm(), _mock_tool_executor()
         agent = WorkerAgent(llm, tc)
         assert agent.client is llm
-        assert agent.tool_caller is tc
+        assert agent.tool_executor is tc
 
 
 # ── WorkerAgent.run ───────────────────────────────────────────────────────────
@@ -116,7 +116,7 @@ class TestWorkerAgentRun:
         expected = _output(summary="result")
         mock_bm.return_value = [{"role": "user", "content": "task"}]
 
-        result = WorkerAgent(_mock_llm(expected), _mock_tool_caller()).run(_input())
+        result = WorkerAgent(_mock_llm(expected), _mock_tool_executor()).run(_input())
 
         assert result.status == "completed"
         assert result.summary == "result"
@@ -126,7 +126,7 @@ class TestWorkerAgentRun:
         llm = _mock_llm()
         mock_bm.return_value = []
 
-        WorkerAgent(llm, _mock_tool_caller()).run(_input())
+        WorkerAgent(llm, _mock_tool_executor()).run(_input())
 
         llm.chat_structured.assert_called_once()
 
@@ -137,7 +137,7 @@ class TestWorkerAgentRun:
         llm = _mock_llm()
         llm.chat_structured.side_effect = [tool_output, final_output]
 
-        tc = _mock_tool_caller()
+        tc = _mock_tool_executor()
         tc.run_call.return_value = ToolResult(tool="bash", ok=True, content="file.py")
         mock_bm.return_value = [{"role": "user", "content": "task"}]
 
@@ -151,7 +151,7 @@ class TestWorkerAgentRun:
     def test_stops_after_max_tool_steps(self, mock_bm):
         always_tool = _output(tool_call=ToolInput(tool="bash", arguments={}))
         llm = _mock_llm(always_tool)  # always returns tool_call
-        tc = _mock_tool_caller()
+        tc = _mock_tool_executor()
         tc.run_call.return_value = ToolResult(tool="bash", ok=True, content="x")
         mock_bm.return_value = []
 
@@ -165,7 +165,7 @@ class TestWorkerAgentRun:
         final_output = _output()
         llm = _mock_llm()
         llm.chat_structured.side_effect = [tool_output, final_output]
-        tc = _mock_tool_caller()
+        tc = _mock_tool_executor()
         tc.run_call.return_value = ToolResult(tool="bash", ok=True, content="output")
         mock_bm.return_value = [{"role": "user", "content": "task"}]
 
@@ -176,11 +176,11 @@ class TestWorkerAgentRun:
         assert len(second_msgs) > len(first_msgs)
 
     @patch("tiny_agent_harness.agents.worker.agent.build_messages")
-    def test_tool_caller_receives_worker_actor(self, mock_bm):
+    def test_tool_executor_receives_worker_actor(self, mock_bm):
         tool_output = _output(tool_call=ToolInput(tool="bash", arguments={}))
         llm = _mock_llm()
         llm.chat_structured.side_effect = [tool_output, _output()]
-        tc = _mock_tool_caller()
+        tc = _mock_tool_executor()
         tc.run_call.return_value = ToolResult(tool="bash", ok=True, content="x")
         mock_bm.return_value = []
 
@@ -193,7 +193,7 @@ class TestWorkerAgentRun:
         llm = _mock_llm()
         mock_bm.return_value = []
 
-        WorkerAgent(llm, _mock_tool_caller()).run(_input())
+        WorkerAgent(llm, _mock_tool_executor()).run(_input())
 
         call_kwargs = llm.chat_structured.call_args.kwargs
         assert call_kwargs.get("agent_name") == "worker"
@@ -203,7 +203,7 @@ class TestWorkerAgentRun:
         llm = _mock_llm()
         mock_bm.return_value = []
 
-        WorkerAgent(llm, _mock_tool_caller()).run(_input())
+        WorkerAgent(llm, _mock_tool_executor()).run(_input())
 
         call_kwargs = llm.chat_structured.call_args.kwargs
         assert call_kwargs.get("response_model") is WorkerOutput

@@ -8,19 +8,19 @@ from tiny_agent_harness.schemas import (
     PlannerInput,
     PlannerOutput,
 )
-from tiny_agent_harness.tools import ToolCaller
+from tiny_agent_harness.tools import ToolExecutor
 
 
 class PlannerAgent(ToolCallingAgent[PlannerInput, PlannerOutput]):
     def __init__(
         self,
         llm_client: SupportsStructuredLLM,
-        tool_caller: ToolCaller,
+        tool_executor: ToolExecutor,
     ):
         super().__init__(
             agent_name="planner",
             llm_client=llm_client,
-            tool_caller=tool_caller,
+            tool_executor=tool_executor,
             message_builder=build_messages,
             input_schema=PlannerInput,
             output_schema=PlannerOutput,

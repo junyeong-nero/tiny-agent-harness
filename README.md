@@ -16,7 +16,7 @@ graph TD
     SR -->|delegate| PL["Planner"]
     SR -->|delegate| WK["Worker"]
     SR -->|delegate| RV["Reviewer"]
-    PL --> TC["ToolCaller"]
+    PL --> TC["ToolExecutor"]
     WK --> TC
     RV --> TC
     TC --> LC["ListenerChannel"]
@@ -155,7 +155,7 @@ For each queued prompt:
 1. `TinyHarness._run()` emits a `run_started` event.
 2. The harness invokes `supervisor_agent(...)`.
 3. The supervisor decides whether to return a final answer, fail, or delegate to a subagent.
-4. Delegated agents execute through the shared `ToolCaller`.
+4. Delegated agents execute through the shared `ToolExecutor`.
 5. Tool and LLM events are emitted through the listener channel.
 6. The final summary is published through the output channel as a `run_result`.
 

@@ -7,9 +7,9 @@ from tiny_agent_harness.tools.git_diff import GitDiffTool
 from tiny_agent_harness.tools.list_files import ListFilesTool
 from tiny_agent_harness.tools.read_file import ReadFileTool
 from tiny_agent_harness.tools.search import SearchTool
-from tiny_agent_harness.tools.tool_caller import (
+from tiny_agent_harness.tools.tool_executor import (
     ActorPermissions,
-    ToolCaller,
+    ToolExecutor,
     ToolRegistry,
 )
 
@@ -26,12 +26,12 @@ def create_default_tools(workspace_root: str) -> ToolRegistry:
     return {tool.name: tool for tool in tools}
 
 
-def create_default_tool_caller(
+def create_default_tool_executor(
     workspace_root: str,
     actor_permissions: ActorPermissions | None = None,
     listeners: ListenerChannel | None = None,
-) -> ToolCaller:
-    return ToolCaller(
+) -> ToolExecutor:
+    return ToolExecutor(
         tools=create_default_tools(workspace_root),
         actor_permissions=actor_permissions,
         ch_listener=listeners,
@@ -46,9 +46,9 @@ __all__ = [
     "ListFilesTool",
     "ReadFileTool",
     "SearchTool",
-    "ToolCaller",
+    "ToolExecutor",
     "ToolRegistry",
     "ToolResult",
-    "create_default_tool_caller",
+    "create_default_tool_executor",
     "create_default_tools",
 ]
