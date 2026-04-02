@@ -95,6 +95,31 @@ class LLMClient:
 
         return prepared_messages
 
+    def _validate_structured_response(
+        self,
+        response_text: str,
+        response_model: type[StructuredResponseT],
+    ) -> StructuredResponseT:
+        response_payload = json.loads(response_text)
+        return response_model.model_validate(response_payload)
+
+    def _append_validation_retry_messages(
+        self,
+        messages: Sequence[ChatMessage],
+        response_text: str,
+        error: Exception,
+    ) -> list[ChatMessage]:
+        return list(messages) + [
+            {"role": "assistant", "content": response_text},
+            {
+                "role": "user",
+                "content": (
+                    f"Your response was invalid. Error: {error}\n"
+                    "Please respond again with valid JSON that matches the schema."
+                ),
+            },
+        ]
+
     def _chat_once(
         self,
         messages: Sequence[ChatMessage],
@@ -172,21 +197,22 @@ class LLMClient:
                     agent_name=agent_name,
                     model=model,
                 )
-                return response_model.model_validate_json(response_text)
-            except (ValidationError, ValueError) as exc:
+            except Exception as exc:
                 last_error = exc
-                prepared_messages = prepared_messages + [
-                    {"role": "assistant", "content": response_text},
-                    {
-                        "role": "user",
-                        "content": (
-                            f"Your response was invalid. Error: {exc}\n"
-                            "Please respond again with valid JSON that matches the schema."
-                        ),
-                    },
-                ]
-            except RuntimeError as exc:
+                continue
+
+            try:
+                return self._validate_structured_response(
+                    response_text=response_text,
+                    response_model=response_model,
+                )
+            except (json.JSONDecodeError, ValidationError) as exc:
                 last_error = exc
+                prepared_messages = self._append_validation_retry_messages(
+                    messages=prepared_messages,
+                    response_text=response_text,
+                    error=exc,
+                )
 
         raise RuntimeError(
             "structured llm request failed after retries"
