@@ -1,4 +1,4 @@
-![tiny-agent-harness](assets/banner.png)
+![tiny-agent-harness](assets/banner.jpeg)
 
 # tiny-agent-harness
 
