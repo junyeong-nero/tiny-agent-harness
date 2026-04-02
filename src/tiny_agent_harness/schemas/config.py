@@ -28,7 +28,7 @@ class ModelsConfig(BaseModel):
         default=None,
         validation_alias=AliasChoices("worker", "executor"),
     )
-    reviewer: str | None = None
+    verifier: str | None = None
 
     @property
     def orchestrator(self) -> str | None:
@@ -40,7 +40,7 @@ class ModelsConfig(BaseModel):
         "planner",
         "explorer",
         "worker",
-        "reviewer",
+        "verifier",
         mode="before",
     )
     @classmethod
@@ -57,7 +57,7 @@ class ModelsConfig(BaseModel):
         self.planner = self.planner or self.default
         self.explorer = self.explorer or self.default
         self.worker = self.worker or self.default
-        self.reviewer = self.reviewer or self.default
+        self.verifier = self.verifier or self.default
         return self
 
 
@@ -97,7 +97,7 @@ class ToolPermissionsConfig(BaseModel):
         ],
         validation_alias=AliasChoices("worker", "executor"),
     )
-    reviewer: list[str] = Field(
+    verifier: list[str] = Field(
         default_factory=lambda: ["read_file", "search", "list_files", "git_diff"]
     )
 
@@ -106,7 +106,7 @@ class ToolPermissionsConfig(BaseModel):
         return list(self.planner)
 
     @field_validator(
-        "supervisor", "planner", "explorer", "worker", "reviewer", mode="before"
+        "supervisor", "planner", "explorer", "worker", "verifier", mode="before"
     )
     @classmethod
     def validate_permissions(cls, value: Any) -> list[str]:
@@ -130,7 +130,7 @@ class ToolPermissionsConfig(BaseModel):
             "explorer": list(self.explorer),
             "worker": worker_permissions,
             "executor": worker_permissions,
-            "reviewer": list(self.reviewer),
+            "verifier": list(self.verifier),
         }
 
 

@@ -5,7 +5,7 @@ models:
     supervisor: gpt-4o-mini
     planner: gpt-4o-mini
     worker: gpt-4o-mini
-    reviewer: gpt-4o-mini
+    verifier: gpt-4o-mini
 
 llm:
     max_retries: 10
@@ -21,7 +21,7 @@ tools:
         - search
         - list_files
         - apply_patch
-    reviewer:
+    verifier:
         - read_file
         - search
         - list_files

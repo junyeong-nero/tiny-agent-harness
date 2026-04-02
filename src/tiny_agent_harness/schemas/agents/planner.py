@@ -2,7 +2,7 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 from tiny_agent_harness.schemas.tools import ToolInput
 from tiny_agent_harness.schemas.agents.worker import WorkerInput, WorkerOutput
-from tiny_agent_harness.schemas.agents.reviewer import ReviewerOutput
+from tiny_agent_harness.schemas.agents.verifier import VerifierOutput
 
 
 class Plan(BaseModel):

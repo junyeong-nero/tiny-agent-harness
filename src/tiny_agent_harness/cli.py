@@ -12,7 +12,7 @@ from tiny_agent_harness.harness import TinyHarness
 from tiny_agent_harness.schemas import Event, ListenerEvent, load_config
 
 _RESET = "\033[0m"
-_AGENT_ORDER = ("planner", "worker", "reviewer")
+_AGENT_ORDER = ("planner", "worker", "verifier")
 
 
 def collecting_listener(
@@ -108,7 +108,7 @@ def _llm_action(event: ListenerEvent) -> str | None:
             summary = _short_text(payload.get("summary"))
             return f"plan {len(plans)} step(s) | {summary or '(no summary)'}"
 
-    if event.agent == "reviewer":
+    if event.agent == "verifier":
         decision = str(payload.get("decision", "")).strip()
         feedback = _short_text(payload.get("feedback"))
         if decision:
@@ -234,7 +234,7 @@ class ConsoleRenderer:
             self.meta("/send", "submit the current multiline draft"),
             self.meta("/cancel", "discard the current multiline draft"),
             self.rule("agents"),
-            self.meta("agents", "supervisor -> planner | worker | reviewer"),
+            self.meta("agents", "supervisor -> planner | worker | verifier"),
             self.rule("skills"),
         ]
         if skills:
@@ -263,9 +263,9 @@ class ConsoleRenderer:
     def render_agents(self, agent_models: dict[str, str]) -> str:
         lines = [
             self.rule("agents"),
-            self.meta("flow", "supervisor -> planner | worker | reviewer"),
+            self.meta("flow", "supervisor -> planner | worker | verifier"),
         ]
-        for agent in ("supervisor", "planner", "worker", "reviewer"):
+        for agent in ("supervisor", "planner", "worker", "verifier"):
             lines.append(self.meta(agent, agent_models.get(agent, "unknown")))
         lines.append(self.rule())
         return "\n".join(lines)
@@ -491,7 +491,7 @@ class InteractiveShell:
             "supervisor": self.default_model,
             "planner": self.default_model,
             "worker": self.default_model,
-            "reviewer": self.default_model,
+            "verifier": self.default_model,
         }
         self.print(self.renderer.render_agents(agent_models))
 
@@ -630,7 +630,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         "supervisor": config.models.supervisor or config.models.default,
         "planner": config.models.planner or config.models.default,
         "worker": config.models.worker or config.models.default,
-        "reviewer": config.models.reviewer or config.models.default,
+        "verifier": config.models.verifier or config.models.default,
     }
 
     def _submit_prompt(task: str) -> None:

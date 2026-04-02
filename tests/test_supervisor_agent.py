@@ -5,7 +5,7 @@ from tiny_agent_harness.agents.supervisor.agent import SupervisorAgent, _MAX_STE
 from tiny_agent_harness.agents.supervisor.prompt import build_messages
 from tiny_agent_harness.schemas import (
     PlannerInput, PlannerOutput,
-    ReviewerInput, ReviewerOutput,
+    VerifierInput, VerifierOutput,
     SupervisorInput, SupervisorOutput,
     WorkerInput, WorkerOutput,
 )
@@ -42,8 +42,8 @@ def _worker_out(**kw) -> WorkerOutput:
     return WorkerOutput(**{"task": "work", "status": "completed", "summary": "done", **kw})
 
 
-def _reviewer_out(**kw) -> ReviewerOutput:
-    return ReviewerOutput(**{"task": "review", "status": "completed", "decision": "approve", "feedback": "ok", **kw})
+def _verifier_out(**kw) -> VerifierOutput:
+    return VerifierOutput(**{"task": "review", "status": "completed", "decision": "approve", "feedback": "ok", **kw})
 
 
 def _mock_llm(*side_effects) -> MagicMock:
@@ -63,7 +63,7 @@ def _mock_tool_executor() -> MagicMock:
 
 class TestSubAgentCall:
     def test_valid_agents(self):
-        for agent in ("planner", "worker", "reviewer"):
+        for agent in ("planner", "worker", "verifier"):
             sc = SubAgentCall(agent=agent, task="do something")
             assert sc.agent == agent
 
@@ -113,7 +113,7 @@ class TestSupervisorSchemas:
         so = SupervisorOutput(task="t", status="completed", summary="ok")
         assert so.planner_outputs == []
         assert so.worker_outputs == []
-        assert so.reviewer_outputs == []
+        assert so.verifier_outputs == []
 
     def test_output_with_all_subagent_results(self):
         so = SupervisorOutput(
@@ -122,11 +122,11 @@ class TestSupervisorSchemas:
             summary="ok",
             planner_outputs=[_planner_out()],
             worker_outputs=[_worker_out()],
-            reviewer_outputs=[_reviewer_out()],
+            verifier_outputs=[_verifier_out()],
         )
         assert len(so.planner_outputs) == 1
         assert len(so.worker_outputs) == 1
-        assert len(so.reviewer_outputs) == 1
+        assert len(so.verifier_outputs) == 1
 
     def test_output_extra_fields_forbidden(self):
         with pytest.raises(Exception):
@@ -155,7 +155,7 @@ class TestSupervisorAgentRunDirect:
         result = SupervisorAgent(_mock_llm(_step()), _mock_tool_executor()).run(_sup_input())
         assert result.planner_outputs == []
         assert result.worker_outputs == []
-        assert result.reviewer_outputs == []
+        assert result.verifier_outputs == []
 
     def test_single_llm_call_when_no_subagent(self):
         llm = _mock_llm(_step())
@@ -207,35 +207,35 @@ class TestSupervisorAgentSubagentDispatch:
         assert called_input.task == "implement the feature"
         assert len(result.worker_outputs) == 1
 
-    @patch("tiny_agent_harness.agents.supervisor.agent.ReviewerAgent")
-    def test_calls_reviewer_subagent(self, mock_reviewer_agent):
-        mock_reviewer_agent.return_value.run.return_value = _reviewer_out()
+    @patch("tiny_agent_harness.agents.supervisor.agent.VerifierAgent")
+    def test_calls_verifier_subagent(self, mock_verifier_agent):
+        mock_verifier_agent.return_value.run.return_value = _verifier_out()
         llm = _mock_llm(
-            _step_call("reviewer", "verify the implementation"),
+            _step_call("verifier", "verify the implementation"),
             _step(summary="done"),
         )
         tool_executor = _mock_tool_executor()
         result = SupervisorAgent(llm, tool_executor).run(_sup_input())
 
-        mock_reviewer_agent.assert_called_once_with(llm, tool_executor)
-        called_input = mock_reviewer_agent.return_value.run.call_args.args[0]
-        assert isinstance(called_input, ReviewerInput)
+        mock_verifier_agent.assert_called_once_with(llm, tool_executor)
+        called_input = mock_verifier_agent.return_value.run.call_args.args[0]
+        assert isinstance(called_input, VerifierInput)
         assert called_input.task == "verify the implementation"
-        assert len(result.reviewer_outputs) == 1
+        assert len(result.verifier_outputs) == 1
 
     @patch("tiny_agent_harness.agents.supervisor.agent.PlannerAgent")
     @patch("tiny_agent_harness.agents.supervisor.agent.WorkerAgent")
-    @patch("tiny_agent_harness.agents.supervisor.agent.ReviewerAgent")
-    def test_full_pipeline_planner_worker_reviewer(
-        self, mock_reviewer_agent, mock_worker_agent, mock_planner_agent
+    @patch("tiny_agent_harness.agents.supervisor.agent.VerifierAgent")
+    def test_full_pipeline_planner_worker_verifier(
+        self, mock_verifier_agent, mock_worker_agent, mock_planner_agent
     ):
         mock_planner_agent.return_value.run.return_value = _planner_out()
         mock_worker_agent.return_value.run.return_value = _worker_out()
-        mock_reviewer_agent.return_value.run.return_value = _reviewer_out()
+        mock_verifier_agent.return_value.run.return_value = _verifier_out()
         llm = _mock_llm(
             _step_call("planner", "plan it"),
             _step_call("worker", "do it"),
-            _step_call("reviewer", "check it"),
+            _step_call("verifier", "check it"),
             _step(summary="all approved"),
         )
 
@@ -244,7 +244,7 @@ class TestSupervisorAgentSubagentDispatch:
         assert result.status == "completed"
         assert len(result.planner_outputs) == 1
         assert len(result.worker_outputs) == 1
-        assert len(result.reviewer_outputs) == 1
+        assert len(result.verifier_outputs) == 1
 
     @patch("tiny_agent_harness.agents.supervisor.agent.WorkerAgent")
     def test_multiple_worker_calls_accumulate(self, mock_worker_agent):
@@ -312,7 +312,7 @@ class TestBuildMessages:
         system = build_messages(_sup_input())[0]["content"]
         assert "planner" in system
         assert "worker" in system
-        assert "reviewer" in system
+        assert "verifier" in system
 
     def test_system_message_describes_status_values(self):
         system = build_messages(_sup_input())[0]["content"]

@@ -13,7 +13,7 @@ AgentName = Literal[
     "orchestrator",
     "explorer",
     "worker",
-    "reviewer",
+    "verifier",
 ]
 StructuredResponseT = TypeVar("StructuredResponseT", bound=BaseModel)
 
@@ -64,7 +64,7 @@ class LLMClient:
             "orchestrator": self.models.orchestrator,
             "explorer": self.models.explorer,
             "worker": self.models.worker,
-            "reviewer": self.models.reviewer,
+            "verifier": self.models.verifier,
         }
         return self.provider.resolve_model(
             model_by_agent[agent_name] or self.models.default

@@ -1,10 +1,10 @@
 from tiny_agent_harness.agents.protocols import format_tool_catalog
 from tiny_agent_harness.llm.providers import ChatMessage
-from tiny_agent_harness.schemas import ReviewerInput, ToolSpec
+from tiny_agent_harness.schemas import VerifierInput, ToolSpec
 
 
 def build_messages(
-    reviewer_input: ReviewerInput,
+    verifier_input: VerifierInput,
     tool_specs: list[ToolSpec],
 ) -> list[ChatMessage]:
     tool_catalog = format_tool_catalog(tool_specs)
@@ -13,7 +13,7 @@ def build_messages(
         {
             "role": "system",
             "content": (
-                "You are the reviewer agent. Verify whether the given task has been properly completed.\n\n"
+                "You are the verifier agent. Verify whether the given task has been properly completed.\n\n"
                 "status values:\n"
                 "  'completed' — review is done. Set decision to 'approve' or 'retry'.\n"
                 "                Always fill feedback with your reasoning.\n"
@@ -28,7 +28,7 @@ def build_messages(
         {
             "role": "user",
             "content": (
-                f"task: {reviewer_input.task}\n"
+                f"task: {verifier_input.task}\n"
                 f"tool_catalog:\n{tool_catalog}"
             ),
         },

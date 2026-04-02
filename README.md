@@ -15,7 +15,7 @@ graph TD
     TH --> SR["Supervisor"]
     SR -->|delegate| PL["Planner"]
     SR -->|delegate| WK["Worker"]
-    SR -->|delegate| RV["Reviewer"]
+    SR -->|delegate| RV["Verifier"]
     PL --> TC["ToolExecutor"]
     WK --> TC
     RV --> TC
@@ -24,7 +24,7 @@ graph TD
     SR --> OC["OutputChannel"]
 ```
 
-The supervisor is not a fixed `planner -> worker -> reviewer` chain.
+The supervisor is not a fixed `planner -> worker -> verifier` chain.
 It chooses which subagent to call next and can call the same type more than once.
 
 ## Quick Start
@@ -109,7 +109,7 @@ models:
   supervisor: gpt-4o-mini
   planner: gpt-4o-mini
   worker: gpt-4o-mini
-  reviewer: gpt-4o-mini
+  verifier: gpt-4o-mini
 
 llm:
   max_retries: 10
@@ -118,7 +118,7 @@ runtime:
   supervisor_max_retries: 3
   planner_max_tool_steps: 10
   worker_max_tool_steps: 10
-  reviewer_max_tool_steps: 10
+  verifier_max_tool_steps: 10
 
 tools:
   supervisor: []
@@ -131,7 +131,7 @@ tools:
     - search
     - list_files
     - apply_patch
-  reviewer:
+  verifier:
     - read_file
     - search
     - list_files
@@ -186,12 +186,12 @@ Performs concrete workspace edits and shell commands.
 - Output: `WorkerOutput` with `summary`, `artifacts`, `changed_files`, `test_results`
 - Tools: `bash`, `read_file`, `search`, `list_files`, `apply_patch`
 
-#### Reviewer
+#### Verifier
 
 Validates the worker's output.
 
-- Input: `ReviewerInput(task=...)`
-- Output: `ReviewerOutput` with `decision`, `feedback`, `status`
+- Input: `VerifierInput(task=...)`
+- Output: `VerifierOutput` with `decision`, `feedback`, `status`
 - Tools: `read_file`, `search`, `list_files`, `git_diff`
 
 #### Shared Agent Loop
@@ -232,7 +232,7 @@ src/
   tiny_agent_harness/
     agents/
       planner/
-      reviewer/
+      verifier/
       supervisor/
       worker/
     channels/
@@ -246,7 +246,7 @@ src/
 tests/
   test_cli.py
   test_planner_agent.py
-  test_reviewer_agent.py
+  test_verifier_agent.py
   test_supervisor_agent.py
   test_worker_agent.py
 config.yaml
@@ -280,7 +280,7 @@ env PYTHONPATH=src uv run pytest
 env PYTHONPATH=src uv run pytest tests/test_cli.py
 ```
 
-Test coverage focuses on `SupervisorAgent`, `PlannerAgent`, `WorkerAgent`, `ReviewerAgent`, and CLI rendering.
+Test coverage focuses on `SupervisorAgent`, `PlannerAgent`, `WorkerAgent`, `VerifierAgent`, and CLI rendering.
 
 ### Current Limitations
 

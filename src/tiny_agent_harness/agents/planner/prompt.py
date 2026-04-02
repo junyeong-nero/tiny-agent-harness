@@ -34,7 +34,7 @@ def build_messages(
                 "  Set tool_call (and keep status='completed') when you need to inspect the\n"
                 "  workspace with a read-only tool before finalising the plan.\n"
                 "  Only do this when necessary. Do not repeat the same inspection.\n\n"
-                "If a previous attempt was rejected, use the reviewer feedback to improve the plan."
+                "If a previous attempt was rejected, use the verifier feedback to improve the plan."
             ),
         },
         {

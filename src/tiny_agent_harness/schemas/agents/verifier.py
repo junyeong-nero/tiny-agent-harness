@@ -4,15 +4,15 @@ from tiny_agent_harness.schemas.tools import ToolInput
 from tiny_agent_harness.schemas.agents.worker import WorkerInput, WorkerOutput
 
 
-class ReviewerInput(BaseModel):
-    """All context passed into the reviewer agent."""
+class VerifierInput(BaseModel):
+    """All context passed into the verifier agent."""
 
     model_config = ConfigDict(extra="forbid")
     task: str
 
 
-class ReviewerOutput(BaseModel):
-    """Final decision returned by the reviewer agent."""
+class VerifierOutput(BaseModel):
+    """Final decision returned by the verifier agent."""
 
     model_config = ConfigDict(extra="forbid")
     task: str

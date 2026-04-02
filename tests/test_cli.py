@@ -13,7 +13,7 @@ def _tool_access() -> dict[str, list[str]]:
     return {
         "planner": ["list_files", "search"],
         "worker": ["bash", "read_file"],
-        "reviewer": ["read_file", "git_diff"],
+        "verifier": ["read_file", "git_diff"],
     }
 
 

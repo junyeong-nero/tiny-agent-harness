@@ -4,8 +4,8 @@
 
 Application code lives under `src/tiny_agent_harness/`.
 
-- `agents/`: class-based agent implementations and prompts for `SupervisorAgent`, `PlannerAgent`, `WorkerAgent`, and `ReviewerAgent`
-- `agents/tool_calling_agent.py`: shared tool-calling base class used by planner/worker/reviewer
+- `agents/`: class-based agent implementations and prompts for `SupervisorAgent`, `PlannerAgent`, `WorkerAgent`, and `VerifierAgent`
+- `agents/tool_calling_agent.py`: shared tool-calling base class used by planner/worker/verifier
 - `agents/protocols.py`: shared protocols and prompt-formatting helpers
 - `channels/`: input/listener/output channel abstractions and the internal `IngressQueue`
 - `llm/`: `LLMClient`, provider factory, and provider implementations under `llm/providers/`
@@ -40,7 +40,7 @@ Use 4-space indentation and keep code compatible with Python 3.11+. Prefer small
 When extending agents, preserve the current class-based pattern:
 
 - `SupervisorAgent` coordinates sub-agent execution directly
-- `PlannerAgent`, `WorkerAgent`, and `ReviewerAgent` inherit from `ToolCallingAgent`
+- `PlannerAgent`, `WorkerAgent`, and `VerifierAgent` inherit from `ToolCallingAgent`
 - shared typing and prompt helpers belong in `agents/protocols.py`
 
 ## Testing Guidelines
