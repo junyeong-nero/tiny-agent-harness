@@ -21,6 +21,7 @@ class WorkerAgent(ToolCallingAgent[WorkerInput, WorkerOutput]):
             message_builder=build_messages,
             input_schema=WorkerInput,
             output_schema=WorkerOutput,
+            max_tool_steps=3,
         )
 
     def run(self, subtask: WorkerInput) -> WorkerOutput:

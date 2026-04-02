@@ -25,6 +25,7 @@ class PlannerAgent(ToolCallingAgent[PlannerInput, PlannerOutput]):
             input_schema=PlannerInput,
             output_schema=PlannerOutput,
             allowed_tools=PLANNER_TOOLS,
+            max_tool_steps=3,
         )
 
     def run(self, state: PlannerInput) -> PlannerOutput:

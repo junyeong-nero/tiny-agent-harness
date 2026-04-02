@@ -18,6 +18,7 @@ class VerifierAgent(ToolCallingAgent[VerifierInput, VerifierOutput]):
             message_builder=build_messages,
             input_schema=VerifierInput,
             output_schema=VerifierOutput,
+            max_tool_steps=3,
         )
 
     def run(self, verifier_input: VerifierInput) -> VerifierOutput:

@@ -1,11 +1,13 @@
 import unittest
 
 import tiny_agent_harness.agents as agents
+import tiny_agent_harness.agents.explore.agent as explore_module
 import tiny_agent_harness.agents.planner.agent as planner_module
 import tiny_agent_harness.agents.verifier.agent as verifier_module
 import tiny_agent_harness.agents.supervisor.agent as supervisor_module
 import tiny_agent_harness.agents.worker.agent as worker_module
 from tiny_agent_harness.agents import (
+    ExploreAgent,
     PlannerAgent,
     VerifierAgent,
     SupervisorAgent,
@@ -17,8 +19,9 @@ class TestAgentExports(unittest.TestCase):
     def test_agents_package_exports_agent_classes(self):
         self.assertEqual(
             set(agents.__all__),
-            {"PlannerAgent", "VerifierAgent", "SupervisorAgent", "WorkerAgent"},
+            {"ExploreAgent", "PlannerAgent", "VerifierAgent", "SupervisorAgent", "WorkerAgent"},
         )
+        self.assertIs(agents.ExploreAgent, ExploreAgent)
         self.assertIs(agents.PlannerAgent, PlannerAgent)
         self.assertIs(agents.VerifierAgent, VerifierAgent)
         self.assertIs(agents.SupervisorAgent, SupervisorAgent)

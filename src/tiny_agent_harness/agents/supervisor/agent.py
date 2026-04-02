@@ -1,9 +1,12 @@
+from tiny_agent_harness.agents.explore import ExploreAgent
 from tiny_agent_harness.agents.planner import PlannerAgent
 from tiny_agent_harness.agents.protocols import SupportsStructuredLLM
 from tiny_agent_harness.agents.verifier import VerifierAgent
 from tiny_agent_harness.agents.supervisor.prompt import build_messages
 from tiny_agent_harness.agents.worker import WorkerAgent
 from tiny_agent_harness.schemas import (
+    ExploreInput,
+    ExploreOutput,
     PlannerInput,
     PlannerOutput,
     VerifierInput,
@@ -32,6 +35,7 @@ class SupervisorAgent:
         self,
         call: SubAgentCall,
         planner_outputs: list[PlannerOutput],
+        explore_outputs: list[ExploreOutput],
         worker_outputs: list[WorkerOutput],
         verifier_outputs: list[VerifierOutput],
     ) -> str:
@@ -40,6 +44,12 @@ class SupervisorAgent:
                 PlannerInput(task=call.task)
             )
             planner_outputs.append(result)
+            return result.model_dump_json()
+        if call.agent == "explorer":
+            result = ExploreAgent(self.llm_client, self.tool_executor).run(
+                ExploreInput(task=call.task)
+            )
+            explore_outputs.append(result)
             return result.model_dump_json()
         if call.agent == "worker":
             result = WorkerAgent(self.llm_client, self.tool_executor).run(
@@ -58,6 +68,7 @@ class SupervisorAgent:
     def run(self, supervisor_input: SupervisorInput) -> SupervisorOutput:
         messages = build_messages(supervisor_input)
         planner_outputs: list[PlannerOutput] = []
+        explore_outputs: list[ExploreOutput] = []
         worker_outputs: list[WorkerOutput] = []
         verifier_outputs: list[VerifierOutput] = []
 
@@ -76,7 +87,11 @@ class SupervisorAgent:
                 break
 
             result_json = self._dispatch(
-                step.subagent_call, planner_outputs, worker_outputs, verifier_outputs
+                step.subagent_call,
+                planner_outputs,
+                explore_outputs,
+                worker_outputs,
+                verifier_outputs,
             )
             messages = messages + [
                 {
@@ -96,6 +111,7 @@ class SupervisorAgent:
             status=final_status,
             summary=step.summary if step else "",
             planner_outputs=planner_outputs,
+            explore_outputs=explore_outputs,
             worker_outputs=worker_outputs,
             verifier_outputs=verifier_outputs,
         )

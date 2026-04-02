@@ -2,6 +2,7 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from tiny_agent_harness.schemas.agents.explore import ExploreOutput
 from tiny_agent_harness.schemas.agents.planner import PlannerOutput
 from tiny_agent_harness.schemas.agents.verifier import VerifierOutput
 from tiny_agent_harness.schemas.agents.worker import WorkerOutput
@@ -12,7 +13,7 @@ class SubAgentCall(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    agent: Literal["planner", "worker", "verifier"]
+    agent: Literal["planner", "explorer", "worker", "verifier"]
     task: str
 
 
@@ -32,5 +33,6 @@ class SupervisorOutput(BaseModel):
     subagent_call: SubAgentCall | None = None
     summary: str
     planner_outputs: list[PlannerOutput] = Field(default_factory=list)
+    explore_outputs: list[ExploreOutput] = Field(default_factory=list)
     worker_outputs: list[WorkerOutput] = Field(default_factory=list)
     verifier_outputs: list[VerifierOutput] = Field(default_factory=list)

@@ -45,8 +45,12 @@ class TestWorkerInput:
         assert wi.kind == "implement"
 
     def test_all_kind_values(self):
-        for kind in ("explore", "implement", "verify"):
+        for kind in ("implement", "verify"):
             assert WorkerInput(task="t", kind=kind).kind == kind
+
+    def test_explore_kind_rejected(self):
+        with pytest.raises(Exception):
+            WorkerInput(task="t", kind="explore")
 
     def test_invalid_kind_rejected(self):
         with pytest.raises(Exception):

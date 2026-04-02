@@ -9,7 +9,7 @@ class WorkerInput(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     task: str
-    kind: Literal["explore", "implement", "verify"] = "implement"
+    kind: Literal["implement", "verify"] = "implement"
 
 
 class WorkerOutput(BaseModel):
@@ -18,7 +18,7 @@ class WorkerOutput(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     task: str
-    kind: Literal["explore", "implement", "verify"] = "implement"
+    kind: Literal["implement", "verify"] = "implement"
 
     tool_call: ToolInput | None = None
     status: Literal["completed", "failed"]

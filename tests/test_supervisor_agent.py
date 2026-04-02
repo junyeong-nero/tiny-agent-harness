@@ -4,6 +4,7 @@ from unittest.mock import MagicMock, patch, call
 from tiny_agent_harness.agents.supervisor.agent import SupervisorAgent, _MAX_STEPS
 from tiny_agent_harness.agents.supervisor.prompt import build_messages
 from tiny_agent_harness.schemas import (
+    ExploreInput, ExploreOutput,
     PlannerInput, PlannerOutput,
     VerifierInput, VerifierOutput,
     SupervisorInput, SupervisorOutput,
@@ -222,6 +223,24 @@ class TestSupervisorAgentSubagentDispatch:
         assert isinstance(called_input, VerifierInput)
         assert called_input.task == "verify the implementation"
         assert len(result.verifier_outputs) == 1
+
+    @patch("tiny_agent_harness.agents.supervisor.agent.ExploreAgent")
+    def test_calls_explorer_subagent(self, mock_explore_agent):
+        mock_explore_agent.return_value.run.return_value = ExploreOutput(
+            task="gather context", status="completed", findings="here is the context"
+        )
+        llm = _mock_llm(
+            _step_call("explorer", "gather context"),
+            _step(summary="done"),
+        )
+        tool_executor = _mock_tool_executor()
+        result = SupervisorAgent(llm, tool_executor).run(_sup_input())
+
+        mock_explore_agent.assert_called_once_with(llm, tool_executor)
+        called_input = mock_explore_agent.return_value.run.call_args.args[0]
+        assert isinstance(called_input, ExploreInput)
+        assert called_input.task == "gather context"
+        assert len(result.explore_outputs) == 1
 
     @patch("tiny_agent_harness.agents.supervisor.agent.PlannerAgent")
     @patch("tiny_agent_harness.agents.supervisor.agent.WorkerAgent")
