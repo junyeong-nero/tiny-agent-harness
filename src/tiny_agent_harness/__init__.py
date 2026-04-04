@@ -24,5 +24,4 @@ __all__ = [
     "OutputChannel",
     "create_llm_client",
     "create_provider",
-    "run_harness",
 ]
