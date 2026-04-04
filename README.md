@@ -14,9 +14,11 @@ graph TD
     IC --> TH["TinyHarness.run()"]
     TH --> SR["Supervisor"]
     SR -->|delegate| PL["Planner"]
+    SR -->|delegate| EX["Explorer"]
     SR -->|delegate| WK["Worker"]
     SR -->|delegate| RV["Verifier"]
     PL --> TC["ToolExecutor"]
+    EX --> TC
     WK --> TC
     RV --> TC
     TC --> LC["ListenerChannel"]
@@ -24,7 +26,7 @@ graph TD
     SR --> OC["OutputChannel"]
 ```
 
-The supervisor is not a fixed `planner -> worker -> verifier` chain.
+The supervisor is not a fixed `planner -> explorer -> worker -> verifier` chain.
 It chooses which subagent to call next and can call the same type more than once.
 
 ## Quick Start
@@ -108,23 +110,23 @@ models:
   default: gpt-4o-mini
   supervisor: gpt-4o-mini
   planner: gpt-4o-mini
+  explorer: gpt-4o-mini
   worker: gpt-4o-mini
   verifier: gpt-4o-mini
 
 llm:
   max_retries: 10
 
-runtime:
-  supervisor_max_retries: 3
-  planner_max_tool_steps: 10
-  worker_max_tool_steps: 10
-  verifier_max_tool_steps: 10
-
 tools:
   supervisor: []
   planner:
     - list_files
     - search
+  explorer:
+    - list_files
+    - search
+    - read_file
+    - git_diff
   worker:
     - bash
     - read_file
@@ -138,13 +140,12 @@ tools:
     - git_diff
 ```
 
+There is no `runtime:` block in the current config schema. Agent loop limits are still internal defaults.
+
 #### Backward-Compatible Aliases
 
 - `orchestrator` → `planner`
 - `executor` → `worker`
-- `orchestrator_max_retries` → `supervisor_max_retries`
-- `orchestrator_max_tool_steps` → `planner_max_tool_steps`
-- `executor_max_tool_steps` → `worker_max_tool_steps`
 
 ## How It Works
 
@@ -153,13 +154,15 @@ tools:
 For each queued prompt:
 
 1. `TinyHarness._run()` emits a `run_started` event.
-2. The harness invokes `supervisor_agent(...)`.
+2. The harness invokes `SupervisorAgent.run(...)`.
 3. The supervisor decides whether to return a final answer, fail, or delegate to a subagent.
 4. Delegated agents execute through the shared `ToolExecutor`.
 5. Tool and LLM events are emitted through the listener channel.
 6. The final summary is published through the output channel as a `run_result`.
 
-The full supervisor pass is retried up to `runtime.supervisor_max_retries` on failure.
+`LLMClient.chat_structured()` retries provider failures and structured-output validation failures up to `llm.max_retries`. Provider failures do not append a failed assistant turn to history; invalid JSON or schema mismatches do append the assistant output plus a correction prompt before retrying.
+
+The harness does not currently retry an entire supervisor pass after a failed run.
 
 ### Pipeline Agents
 
@@ -177,6 +180,14 @@ Read-only analysis agent. Inspects the workspace and produces a structured plan.
 - Input: `PlannerInput(task=...)`
 - Output: `PlannerOutput` with `summary` and optional `plans`
 - Tools: `list_files`, `search`
+
+#### Explorer
+
+Read-mostly context-gathering agent. It helps the supervisor inspect files and diffs before implementation or verification.
+
+- Input: `ExploreInput(task=...)`
+- Output: `ExploreOutput` with `findings` and optional `sources`
+- Tools: `list_files`, `search`, `read_file`, `git_diff`
 
 #### Worker
 
@@ -196,13 +207,22 @@ Validates the worker's output.
 
 #### Shared Agent Loop
 
-All three subagents run through `BaseAgent`, which:
+Planner, explorer, worker, and verifier run through `ToolCallingAgent`, which:
 
 - builds a role-specific prompt,
 - asks the LLM for structured JSON,
+- turns unknown, disallowed, and invalid tool calls into `ToolResult(ok=False)`,
 - executes a tool call when present,
-- feeds the result back into the conversation,
+- feeds the tool result back into the conversation,
+- lets the model respond to failed tool results on the next step,
+- returns a schema-valid `status="failed"` result if a pending `tool_call` remains after the step budget is exhausted,
 - stops when no `tool_call` is returned.
+
+### Failure Semantics
+
+- Tool failures are recoverable inside the tool loop. Unknown tools, disallowed tools, invalid arguments, and runtime tool exceptions become `ToolResult(ok=False)` plus a `tool_call_finished` event.
+- Step-limit exhaustion is explicit. If a subagent still has a pending `tool_call` after its internal step budget, it returns `status="failed"` instead of looking completed.
+- Supervisor failures are explicit too. A failed subagent result, or a pending subagent call after the supervisor loop budget, produces a final supervisor result with `status="failed"`.
 
 ### Built-in Tools
 
@@ -231,6 +251,7 @@ The output channel emits `run_result` events whose payload is a `Response`.
 src/
   tiny_agent_harness/
     agents/
+      explore/
       planner/
       verifier/
       supervisor/
@@ -245,6 +266,8 @@ src/
     harness.py
 tests/
   test_cli.py
+  test_explore_agent.py
+  test_harness.py
   test_planner_agent.py
   test_verifier_agent.py
   test_supervisor_agent.py
@@ -280,12 +303,18 @@ env PYTHONPATH=src uv run pytest
 env PYTHONPATH=src uv run pytest tests/test_cli.py
 ```
 
-Test coverage focuses on `SupervisorAgent`, `PlannerAgent`, `WorkerAgent`, `VerifierAgent`, and CLI rendering.
+Test coverage focuses on `SupervisorAgent`, `PlannerAgent`, `ExploreAgent`, `WorkerAgent`, `VerifierAgent`, the harness loop, and CLI rendering.
 
 ### Current Limitations
 
-- Per-agent `max_tool_steps` config values are not yet read by agent classes; internal defaults are used.
-- The supervisor's subagent loop limit is hard-coded to 10.
-- `explorer` support exists in config and model routing, but no explorer agent module exists yet.
-- The CLI requires a real provider API key — `create_llm_client()` resolves credentials eagerly.
+- Per-agent `max_tool_steps` values are still hard-coded in agent classes. The current defaults are `3` for planner, explorer, worker, and verifier.
+- The supervisor's subagent loop limit is still hard-coded to `10`.
+- The CLI exposes planner, worker, and verifier more directly than explorer, even though explorer is available to the supervisor.
+- The CLI requires a real provider API key because `create_llm_client()` resolves credentials eagerly.
 - Provider support is limited to OpenAI and OpenRouter chat-completions style APIs.
+
+### Follow-up Candidates
+
+- Externalize the supervisor and subagent step limits into config instead of keeping them hard-coded.
+- Expose explorer more consistently in CLI status/help output and user-facing workflow docs.
+- Keep tightening public exports now that import-surface tests are in place.
