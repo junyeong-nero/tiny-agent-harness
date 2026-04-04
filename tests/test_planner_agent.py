@@ -145,16 +145,19 @@ class TestPlannerAgentRun:
         tc.run_call.assert_called_once()
 
     @patch("tiny_agent_harness.agents.planner.agent.build_messages")
-    def test_stops_after_max_tool_steps(self, mock_bm):
+    def test_returns_failed_result_when_max_tool_steps_exceeded(self, mock_bm):
         always_tool = _output(tool_call=ToolInput(tool="list_files", arguments={}))
         llm = _mock_llm(always_tool)
         tc = _mock_tool_executor()
         tc.run_call.return_value = ToolResult(tool="list_files", ok=True, content="x")
         mock_bm.return_value = []
 
-        PlannerAgent(llm, tc).run(_input())
+        result = PlannerAgent(llm, tc).run(_input())
 
         assert llm.chat_structured.call_count == 3
+        assert result.status == "failed"
+        assert result.tool_call is None
+        assert "max tool steps exceeded" in result.summary
 
     @patch("tiny_agent_harness.agents.planner.agent.build_messages")
     def test_tool_executor_receives_planner_actor(self, mock_bm):

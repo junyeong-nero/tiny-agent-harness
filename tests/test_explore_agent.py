@@ -172,6 +172,23 @@ class TestExploreAgentRun:
         call_kwargs = llm.chat_structured.call_args.kwargs
         assert call_kwargs.get("response_model") is ExploreOutput
 
+    @patch("tiny_agent_harness.agents.explore.agent.build_messages")
+    def test_returns_failed_result_when_max_tool_steps_exceeded(self, mock_bm):
+        always_tool = _output(tool_call=ToolInput(tool="read_file", arguments={}))
+        llm = _mock_llm(always_tool)
+        tc = _mock_tool_executor()
+        tc.run_call.return_value = ToolResult(tool="read_file", ok=True, content="x")
+        mock_bm.return_value = []
+
+        agent = ExploreAgent(llm, tc)
+        agent.max_tool_steps = 2
+        result = agent.run(_input())
+
+        assert llm.chat_structured.call_count == 2
+        assert result.status == "failed"
+        assert result.tool_call is None
+        assert "max tool steps exceeded" in result.findings
+
 
 # ── build_messages prompt ─────────────────────────────────────────────────────
 

@@ -1,4 +1,4 @@
-from typing import Callable, Generic, TypeVar
+from typing import Any, Callable, Generic, TypeVar
 
 from pydantic import BaseModel
 
@@ -38,6 +38,48 @@ class ToolCallingAgent(Generic[InputT, OutputT]):
     def _get_allowed_tools(self, data: InputT) -> list[str]:
         return self.allowed_tools
 
+    def _build_step_limit_message(self, result: OutputT | None) -> str:
+        tool_name = None
+        if result is not None:
+            tool_call = getattr(result, "tool_call", None)
+            tool_name = getattr(tool_call, "tool", None)
+
+        suffix = f"; pending tool call: {tool_name}" if tool_name else ""
+        return (
+            f"max tool steps exceeded after {self.max_tool_steps} steps{suffix}"
+        )
+
+    def _build_failed_output(
+        self,
+        data: InputT,
+        message: str,
+        result: OutputT | None = None,
+    ) -> OutputT:
+        schema_fields = self.output_schema.model_fields
+
+        if result is not None:
+            payload: dict[str, Any] = result.model_dump()
+        else:
+            payload = {
+                key: value
+                for key, value in data.model_dump().items()
+                if key in schema_fields
+            }
+
+        payload["status"] = "failed"
+        if "tool_call" in schema_fields:
+            payload["tool_call"] = None
+        if "summary" in schema_fields:
+            payload["summary"] = message
+        if "findings" in schema_fields:
+            payload["findings"] = message
+        if "feedback" in schema_fields:
+            payload["feedback"] = message
+        if "decision" in schema_fields:
+            payload["decision"] = "retry"
+
+        return self.output_schema.model_validate(payload)
+
     def run(self, data: InputT) -> OutputT:
         self.input_schema.model_validate(data.model_dump())
         allowed = self._get_allowed_tools(data)
@@ -59,7 +101,7 @@ class ToolCallingAgent(Generic[InputT, OutputT]):
             ]
 
             if not getattr(result, "tool_call", None):
-                break
+                return result
 
             tool_result = self.tool_executor.run_call(
                 result.tool_call,
@@ -70,4 +112,8 @@ class ToolCallingAgent(Generic[InputT, OutputT]):
                 {"role": "user", "content": format_tool_result(tool_result)}
             ]
 
-        return result
+        return self._build_failed_output(
+            data=data,
+            message=self._build_step_limit_message(result),
+            result=result,
+        )

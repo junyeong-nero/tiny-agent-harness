@@ -154,16 +154,20 @@ class TestVerifierAgentRun:
         tc.run_call.assert_called_once()
 
     @patch("tiny_agent_harness.agents.verifier.agent.build_messages")
-    def test_stops_after_max_tool_steps(self, mock_bm):
+    def test_returns_failed_result_when_max_tool_steps_exceeded(self, mock_bm):
         always_tool = _output(tool_call=ToolInput(tool="read_file", arguments={}))
         llm = _mock_llm(always_tool)
         tc = _mock_tool_executor()
         tc.run_call.return_value = ToolResult(tool="read_file", ok=True, content="x")
         mock_bm.return_value = []
 
-        VerifierAgent(llm, tc).run(_input())
+        result = VerifierAgent(llm, tc).run(_input())
 
         assert llm.chat_structured.call_count == 3
+        assert result.status == "failed"
+        assert result.tool_call is None
+        assert result.decision == "retry"
+        assert "max tool steps exceeded" in result.feedback
 
     @patch("tiny_agent_harness.agents.verifier.agent.build_messages")
     def test_tool_executor_receives_verifier_actor(self, mock_bm):

@@ -152,16 +152,19 @@ class TestWorkerAgentRun:
         tc.run_call.assert_called_once()
 
     @patch("tiny_agent_harness.agents.worker.agent.build_messages")
-    def test_stops_after_max_tool_steps(self, mock_bm):
+    def test_returns_failed_result_when_max_tool_steps_exceeded(self, mock_bm):
         always_tool = _output(tool_call=ToolInput(tool="bash", arguments={}))
         llm = _mock_llm(always_tool)  # always returns tool_call
         tc = _mock_tool_executor()
         tc.run_call.return_value = ToolResult(tool="bash", ok=True, content="x")
         mock_bm.return_value = []
 
-        WorkerAgent(llm, tc).run(_input())  # max_tool_steps == 3 by default
+        result = WorkerAgent(llm, tc).run(_input())  # max_tool_steps == 3 by default
 
         assert llm.chat_structured.call_count == 3
+        assert result.status == "failed"
+        assert result.tool_call is None
+        assert "max tool steps exceeded" in result.summary
 
     @patch("tiny_agent_harness.agents.worker.agent.build_messages")
     def test_messages_accumulate_across_tool_steps(self, mock_bm):

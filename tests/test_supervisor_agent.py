@@ -309,9 +309,32 @@ class TestSupervisorAgentSubagentDispatch:
 
         with patch("tiny_agent_harness.agents.supervisor.agent.WorkerAgent") as mock_worker_agent:
             mock_worker_agent.return_value.run.return_value = _worker_out()
-            SupervisorAgent(llm, tc).run(_sup_input())
+            result = SupervisorAgent(llm, tc).run(_sup_input())
 
         assert llm.chat_structured.call_count == _MAX_STEPS
+        assert result.status == "failed"
+        assert "max supervisor steps exceeded" in result.summary
+
+    @patch("tiny_agent_harness.agents.supervisor.agent.WorkerAgent")
+    def test_failed_subagent_result_marks_supervisor_failed(self, mock_worker_agent):
+        mock_worker_agent.return_value.run.return_value = _worker_out(
+            status="failed",
+            summary="max tool steps exceeded after 3 steps; pending tool call: bash",
+            tool_call=None,
+        )
+        llm = _mock_llm(
+            _step_call("worker", "implement the feature"),
+            _step(summary="done"),
+        )
+
+        result = SupervisorAgent(llm, _mock_tool_executor()).run(_sup_input())
+
+        assert llm.chat_structured.call_count == 1
+        assert result.status == "failed"
+        assert len(result.worker_outputs) == 1
+        assert result.summary == (
+            "worker failed: max tool steps exceeded after 3 steps; pending tool call: bash"
+        )
 
 
 # ── build_messages prompt ─────────────────────────────────────────────────────
