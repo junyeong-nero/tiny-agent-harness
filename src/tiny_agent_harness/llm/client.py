@@ -1,5 +1,5 @@
 import json
-from typing import Literal, Sequence, TypeVar
+from typing import Any, Literal, Sequence, TypeVar, get_args, get_origin
 
 from pydantic import BaseModel, ValidationError
 from tiny_agent_harness.channels.listener import ListenerChannel
@@ -101,7 +101,84 @@ class LLMClient:
         response_model: type[StructuredResponseT],
     ) -> StructuredResponseT:
         response_payload = json.loads(response_text)
+        response_payload = self._normalize_nested_model_fields(
+            response_payload=response_payload,
+            response_model=response_model,
+        )
         return response_model.model_validate(response_payload)
+
+    def _normalize_nested_model_fields(
+        self,
+        response_payload: Any,
+        response_model: type[BaseModel],
+    ) -> Any:
+        if not isinstance(response_payload, dict):
+            return response_payload
+
+        normalized_payload = dict(response_payload)
+        for field_name, field_info in response_model.model_fields.items():
+            if field_name not in normalized_payload:
+                continue
+
+            normalized_payload[field_name] = self._normalize_value_for_annotation(
+                value=normalized_payload[field_name],
+                annotation=field_info.annotation,
+            )
+
+        return normalized_payload
+
+    def _normalize_value_for_annotation(self, value: Any, annotation: Any) -> Any:
+        nested_model = self._resolve_model_annotation(annotation)
+        if nested_model is not None:
+            return self._normalize_model_value(value=value, model_type=nested_model)
+
+        origin = get_origin(annotation)
+        if origin is list and isinstance(value, list):
+            item_annotation = get_args(annotation)[0] if get_args(annotation) else Any
+            return [
+                self._normalize_value_for_annotation(item, item_annotation)
+                for item in value
+            ]
+
+        if origin is dict and isinstance(value, dict):
+            args = get_args(annotation)
+            value_annotation = args[1] if len(args) == 2 else Any
+            return {
+                key: self._normalize_value_for_annotation(item, value_annotation)
+                for key, item in value.items()
+            }
+
+        return value
+
+    def _normalize_model_value(
+        self,
+        value: Any,
+        model_type: type[BaseModel],
+    ) -> Any:
+        if not isinstance(value, dict):
+            return value
+
+        normalized_value: dict[str, Any] = {}
+        for field_name, field_info in model_type.model_fields.items():
+            if field_name not in value:
+                continue
+
+            normalized_value[field_name] = self._normalize_value_for_annotation(
+                value=value[field_name],
+                annotation=field_info.annotation,
+            )
+
+        return normalized_value
+
+    def _resolve_model_annotation(self, annotation: Any) -> type[BaseModel] | None:
+        if isinstance(annotation, type) and issubclass(annotation, BaseModel):
+            return annotation
+
+        for candidate in get_args(annotation):
+            if isinstance(candidate, type) and issubclass(candidate, BaseModel):
+                return candidate
+
+        return None
 
     def _append_validation_retry_messages(
         self,

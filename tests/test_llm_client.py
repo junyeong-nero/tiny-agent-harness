@@ -1,7 +1,7 @@
 import unittest
 from typing import Sequence
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 from tiny_agent_harness.llm.client import LLMClient
 from tiny_agent_harness.llm.providers import BaseProvider, ChatMessage
@@ -11,6 +11,22 @@ from tiny_agent_harness.schemas import ModelsConfig
 class StructuredReply(BaseModel):
     answer: str
     count: int
+
+
+class StrictToolCall(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    tool: str
+    arguments: dict[str, str]
+
+
+class StrictExploreReply(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    task: str
+    tool_call: StrictToolCall | None = None
+    status: str
+    findings: str
 
 
 class StubProvider(BaseProvider):
@@ -158,3 +174,37 @@ class TestLLMClientStructuredRetries(unittest.TestCase):
             "Please respond again with valid JSON that matches the schema.",
             second_messages[-1]["content"],
         )
+
+    def test_chat_structured_normalizes_extra_nested_fields_before_validation(
+        self,
+    ) -> None:
+        client, provider = self._make_client(
+            responses=[
+                (
+                    '{"task": "summarize README.md", "tool_call": '
+                    '{"tool": "read_file", "arguments": {"path": "README.md"}, '
+                    '"status": null}, "status": "completed", "findings": "done"}'
+                )
+            ],
+            max_retries=0,
+        )
+
+        result = client.chat_structured(
+            messages=[{"role": "user", "content": "summarize README.md"}],
+            agent_name="explorer",
+            response_model=StrictExploreReply,
+        )
+
+        self.assertEqual(
+            result.model_dump(),
+            {
+                "task": "summarize README.md",
+                "tool_call": {
+                    "tool": "read_file",
+                    "arguments": {"path": "README.md"},
+                },
+                "status": "completed",
+                "findings": "done",
+            },
+        )
+        self.assertEqual(len(provider.calls), 1)
