@@ -54,7 +54,7 @@ class TestConsoleRenderer:
 
         assert line == "supervisor ACTION delegate -> worker | update cli output"
 
-    def test_renders_worker_tool_request_as_action(self):
+    def test_hides_subagent_llm_response_details(self):
         renderer = _renderer()
         event = ListenerEvent(
             kind="llm_response",
@@ -70,9 +70,9 @@ class TestConsoleRenderer:
 
         line = renderer.render_listener_event(event)
 
-        assert line == 'worker     ACTION request tool read_file {"path": "src/app.py"}'
+        assert line is None
 
-    def test_renders_tool_started_with_compact_json_arguments(self):
+    def test_hides_subagent_tool_started_event(self):
         renderer = _renderer()
         event = ListenerEvent(
             kind="tool_call_started",
@@ -82,9 +82,9 @@ class TestConsoleRenderer:
 
         line = renderer.render_listener_event(event)
 
-        assert line == 'worker     TOOL   bash {"cmd": "ls", "cwd": "."}'
+        assert line is None
 
-    def test_renders_tool_finished_with_status(self):
+    def test_hides_subagent_tool_finished_event(self):
         renderer = _renderer()
         event = ListenerEvent(
             kind="tool_call_finished",
@@ -94,19 +94,31 @@ class TestConsoleRenderer:
 
         line = renderer.render_listener_event(event)
 
-        assert line == "worker     TOOL   read_file [ok] hello"
+        assert line is None
 
-    def test_truncates_long_tool_finished_content(self):
+    def test_hides_subagent_run_completed_event(self):
         renderer = _renderer()
         event = ListenerEvent(
-            kind="tool_call_finished",
-            agent="worker",
-            data={"tool": "read_file", "ok": True, "content": "x" * 300},
+            kind="run_completed",
+            agent="verifier",
+            data={"summary": "verified changes"},
         )
 
         line = renderer.render_listener_event(event)
 
-        assert line.endswith(("x" * 240) + "...")
+        assert line is None
+
+    def test_renders_supervisor_run_completed_event(self):
+        renderer = _renderer()
+        event = ListenerEvent(
+            kind="run_completed",
+            agent="supervisor",
+            data={"summary": "final supervisor summary"},
+        )
+
+        line = renderer.render_listener_event(event)
+
+        assert line == "supervisor DONE   completed | final supervisor summary"
 
     def test_renders_banner_with_minimal_session_metadata(self):
         renderer = _renderer()

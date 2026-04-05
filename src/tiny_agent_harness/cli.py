@@ -13,6 +13,7 @@ from tiny_agent_harness.schemas import Event, ListenerEvent, load_config
 
 _RESET = "\033[0m"
 _AGENT_ORDER = ("planner", "worker", "verifier")
+_SUBAGENT_NAMES = ("explorer", "planner", "worker", "verifier")
 
 
 def collecting_listener(
@@ -123,6 +124,22 @@ def _llm_action(event: ListenerEvent) -> str | None:
     if summary:
         return summary
     return None
+
+
+def _is_hidden_subagent_event(event: ListenerEvent) -> bool:
+    return bool(
+        event.agent in _SUBAGENT_NAMES
+        and event.kind
+        in {
+            "run_started",
+            "run_completed",
+            "run_failed",
+            "llm_response",
+            "llm_error",
+            "tool_call_started",
+            "tool_call_finished",
+        }
+    )
 
 
 @dataclass(frozen=True)
@@ -319,6 +336,9 @@ class ConsoleRenderer:
 
     def render_listener_event(self, event: ListenerEvent) -> str | None:
         if event.kind == "llm_request":
+            return None
+
+        if _is_hidden_subagent_event(event):
             return None
 
         agent = (event.agent or "system")[:10].ljust(10)
