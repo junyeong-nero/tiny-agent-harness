@@ -1,11 +1,16 @@
+from pathlib import Path
+
 from tiny_agent_harness.channels.listener import ListenerChannel
 from tiny_agent_harness.schemas import ToolResult
 from tiny_agent_harness.tools.apply_patch import ApplyPatchTool
 from tiny_agent_harness.tools.base import BaseTool
 from tiny_agent_harness.tools.bash import BashTool
+from tiny_agent_harness.tools.git_status import GitStatusTool
 from tiny_agent_harness.tools.git_diff import GitDiffTool
+from tiny_agent_harness.tools.glob import GlobTool
 from tiny_agent_harness.tools.list_files import ListFilesTool
 from tiny_agent_harness.tools.read_file import ReadFileTool
+from tiny_agent_harness.tools.replace_in_file import ReplaceInFileTool
 from tiny_agent_harness.tools.search import SearchTool
 from tiny_agent_harness.tools.tool_executor import (
     ActorPermissions,
@@ -14,20 +19,23 @@ from tiny_agent_harness.tools.tool_executor import (
 )
 
 
-def create_default_tools(workspace_root: str) -> ToolRegistry:
+def create_default_tools(workspace_root: str | Path) -> ToolRegistry:
     tools: list[BaseTool] = [
         BashTool(workspace_root),
         ReadFileTool(workspace_root),
         SearchTool(workspace_root),
+        GlobTool(workspace_root),
         ListFilesTool(workspace_root),
+        ReplaceInFileTool(workspace_root),
         ApplyPatchTool(workspace_root),
+        GitStatusTool(workspace_root),
         GitDiffTool(workspace_root),
     ]
     return {tool.name: tool for tool in tools}
 
 
 def create_default_tool_executor(
-    workspace_root: str,
+    workspace_root: str | Path,
     actor_permissions: ActorPermissions | None = None,
     listeners: ListenerChannel | None = None,
 ) -> ToolExecutor:
@@ -42,9 +50,12 @@ __all__ = [
     "ApplyPatchTool",
     "BaseTool",
     "BashTool",
+    "GitStatusTool",
     "GitDiffTool",
+    "GlobTool",
     "ListFilesTool",
     "ReadFileTool",
+    "ReplaceInFileTool",
     "SearchTool",
     "ToolExecutor",
     "ToolRegistry",

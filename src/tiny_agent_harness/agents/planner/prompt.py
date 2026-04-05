@@ -3,7 +3,7 @@ from tiny_agent_harness.llm.providers import ChatMessage
 from tiny_agent_harness.schemas import Config, PlannerInput, ToolSpec
 
 
-PLANNER_TOOLS = ["list_files", "search"]
+PLANNER_TOOLS = ["list_files", "search", "glob"]
 
 
 def build_messages(

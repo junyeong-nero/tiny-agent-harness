@@ -15,14 +15,27 @@ tools:
     planner:
         - list_files
         - search
+        - glob
+    explorer:
+        - list_files
+        - search
+        - glob
+        - read_file
+        - git_status
+        - git_diff
     worker:
         - bash
         - read_file
         - search
+        - glob
         - list_files
+        - replace_in_file
         - apply_patch
+        - git_status
     verifier:
         - read_file
         - search
+        - glob
         - list_files
+        - git_status
         - git_diff

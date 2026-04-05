@@ -81,24 +81,41 @@ class ToolPermissionsConfig(BaseModel):
 
     supervisor: list[str] = Field(default_factory=list)
     planner: list[str] = Field(
-        default_factory=lambda: ["list_files", "search"],
+        default_factory=lambda: ["list_files", "search", "glob"],
         validation_alias=AliasChoices("planner", "orchestrator"),
     )
     explorer: list[str] = Field(
-        default_factory=lambda: ["list_files", "search", "read_file", "git_diff"]
+        default_factory=lambda: [
+            "list_files",
+            "search",
+            "glob",
+            "read_file",
+            "git_status",
+            "git_diff",
+        ]
     )
     worker: list[str] = Field(
         default_factory=lambda: [
             "bash",
             "read_file",
             "search",
+            "glob",
             "list_files",
+            "replace_in_file",
             "apply_patch",
+            "git_status",
         ],
         validation_alias=AliasChoices("worker", "executor"),
     )
     verifier: list[str] = Field(
-        default_factory=lambda: ["read_file", "search", "list_files", "git_diff"]
+        default_factory=lambda: [
+            "read_file",
+            "search",
+            "glob",
+            "list_files",
+            "git_status",
+            "git_diff",
+        ]
     )
 
     @property

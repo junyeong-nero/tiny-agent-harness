@@ -3,7 +3,7 @@ from tiny_agent_harness.llm.providers import ChatMessage
 from tiny_agent_harness.schemas import ExploreInput, ToolSpec
 
 
-EXPLORE_TOOLS = ["list_files", "search", "read_file", "git_diff"]
+EXPLORE_TOOLS = ["list_files", "search", "glob", "read_file", "git_status", "git_diff"]
 
 
 def build_messages(
@@ -29,7 +29,7 @@ def build_messages(
                 "  'failed'    — required information cannot be found. Explain why.\n\n"
                 "tool_call field:\n"
                 "  Set tool_call when you need more information. You will be called again\n"
-                "  with the result. Only use: list_files, search, read_file, git_diff.\n\n"
+                "  with the result. Only use: list_files, search, glob, read_file, git_status, git_diff.\n\n"
                 "Stop as soon as the worker has enough to act. Do not over-explore."
             ),
         },

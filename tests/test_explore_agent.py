@@ -86,7 +86,14 @@ class TestExploreAgentInit:
 
     def test_allowed_tools_are_readonly(self):
         agent = ExploreAgent(_mock_llm(), _mock_tool_executor())
-        assert set(agent.allowed_tools) == {"list_files", "search", "read_file", "git_diff"}
+        assert set(agent.allowed_tools) == {
+            "list_files",
+            "search",
+            "glob",
+            "read_file",
+            "git_status",
+            "git_diff",
+        }
 
     def test_stores_llm_and_tool_executor(self):
         llm, tc = _mock_llm(), _mock_tool_executor()
