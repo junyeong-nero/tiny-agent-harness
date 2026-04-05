@@ -39,6 +39,8 @@ export OPENAI_API_KEY=your_key_here
 tiny-agent --workspace .
 ```
 
+The installed package exposes `tiny-agent` as the primary CLI entry point.
+
 For OpenRouter:
 
 ```bash
@@ -61,6 +63,10 @@ tiny-agent --workspace . "inspect this repository and summarize the architecture
 # With a custom config
 tiny-agent --workspace . --config config.yaml
 ```
+
+If you are developing from a local clone, prefer `uv run tiny-agent ...` or
+`env PYTHONPATH=src uv run python -m tiny_agent_harness.cli ...` so you execute
+the checked-out source instead of an older globally installed copy.
 
 Interactive mode provides:
 
@@ -297,6 +303,9 @@ uv sync
 export OPENAI_API_KEY=your_key_here
 uv run tiny-agent --workspace .
 ```
+
+`uv run tiny-agent ...` uses the project-managed entry point from this checkout.
+If you want to force Python to import from `src/`, use the module form below.
 
 To invoke the module directly:
 
