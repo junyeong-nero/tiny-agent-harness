@@ -16,6 +16,7 @@ dependencies = [
 ]
 
 [project.scripts]
+tiny-agent = "tiny_agent_harness.cli:main"
 tiny-agent-harness = "tiny_agent_harness.cli:main"
 
 [tool.setuptools]
