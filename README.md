@@ -122,21 +122,29 @@ tools:
   planner:
     - list_files
     - search
+    - glob
   explorer:
     - list_files
     - search
+    - glob
     - read_file
+    - git_status
     - git_diff
   worker:
     - bash
     - read_file
     - search
+    - glob
     - list_files
+    - replace_in_file
     - apply_patch
+    - git_status
   verifier:
     - read_file
     - search
+    - glob
     - list_files
+    - git_status
     - git_diff
 ```
 
@@ -179,7 +187,7 @@ Read-only analysis agent. Inspects the workspace and produces a structured plan.
 
 - Input: `PlannerInput(task=...)`
 - Output: `PlannerOutput` with `summary` and optional `plans`
-- Tools: `list_files`, `search`
+- Tools: `list_files`, `search`, `glob`
 
 #### Explorer
 
@@ -187,7 +195,7 @@ Read-mostly context-gathering agent. It helps the supervisor inspect files and d
 
 - Input: `ExploreInput(task=...)`
 - Output: `ExploreOutput` with `findings` and optional `sources`
-- Tools: `list_files`, `search`, `read_file`, `git_diff`
+- Tools: `list_files`, `search`, `glob`, `read_file`, `git_status`, `git_diff`
 
 #### Worker
 
@@ -195,7 +203,7 @@ Performs concrete workspace edits and shell commands.
 
 - Input: `WorkerInput(task=..., kind=...)`
 - Output: `WorkerOutput` with `summary`, `artifacts`, `changed_files`, `test_results`
-- Tools: `bash`, `read_file`, `search`, `list_files`, `apply_patch`
+- Tools: `bash`, `read_file`, `search`, `glob`, `list_files`, `replace_in_file`, `apply_patch`, `git_status`
 
 #### Verifier
 
@@ -203,7 +211,7 @@ Validates the worker's output.
 
 - Input: `VerifierInput(task=...)`
 - Output: `VerifierOutput` with `decision`, `feedback`, `status`
-- Tools: `read_file`, `search`, `list_files`, `git_diff`
+- Tools: `read_file`, `search`, `glob`, `list_files`, `git_status`, `git_diff`
 
 #### Shared Agent Loop
 
@@ -231,8 +239,11 @@ Planner, explorer, worker, and verifier run through `ToolCallingAgent`, which:
 | `bash` | Run shell commands |
 | `read_file` | Read a file from the workspace |
 | `search` | Search file contents |
+| `glob` | Find files matching a glob pattern |
 | `list_files` | List files in a directory |
+| `replace_in_file` | Replace exact text in a file |
 | `apply_patch` | Apply a unified diff patch |
+| `git_status` | Show git status output |
 | `git_diff` | Show git diff output |
 
 ### Events
