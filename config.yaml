@@ -1,19 +1,11 @@
-provider: openai
+provider: openrouter
 
 models:
-    default: gpt-4o-mini
-    supervisor: gpt-4o-mini
-    planner: gpt-4o-mini
-    worker: gpt-4o-mini
-    verifier: gpt-4o-mini
-
-# provider: openrouter
-
-# models:
-#     default: liquid/lfm-2.5-1.2b-instruct:free
-#     planner: liquid/lfm-2.5-1.2b-instruct:free
-#     worker: liquid/lfm-2.5-1.2b-instruct:free
-#     verifier: liquid/lfm-2.5-1.2b-instruct:free
+    default: nvidia/nemotron-3-nano-30b-a3b:free
+    supervisor: nvidia/nemotron-3-nano-30b-a3b:free
+    planner: nvidia/nemotron-3-nano-30b-a3b:free
+    worker: nvidia/nemotron-3-nano-30b-a3b:free
+    verifier: nvidia/nemotron-3-nano-30b-a3b:free
 
 llm:
     max_retries: 10
@@ -23,14 +15,24 @@ tools:
     planner:
         - list_files
         - search
+        - glob
+    explorer:
+        - list_files
+        - search
+        - glob
+        - read_file
+        - git_status
+        - git_diff
     worker:
         - bash
         - read_file
-        - apply_patch
         - replace_in_file
+        - apply_patch
         - git_status
     verifier:
         - read_file
         - search
+        - glob
         - list_files
+        - git_status
         - git_diff
