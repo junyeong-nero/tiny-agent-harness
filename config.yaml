@@ -26,9 +26,9 @@ tools:
     worker:
         - bash
         - read_file
-        - search
-        - list_files
         - apply_patch
+        - replace_in_file
+        - git_status
     verifier:
         - read_file
         - search

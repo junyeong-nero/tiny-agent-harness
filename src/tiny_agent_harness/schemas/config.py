@@ -98,9 +98,6 @@ class ToolPermissionsConfig(BaseModel):
         default_factory=lambda: [
             "bash",
             "read_file",
-            "search",
-            "glob",
-            "list_files",
             "replace_in_file",
             "apply_patch",
             "git_status",
