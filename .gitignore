@@ -12,3 +12,4 @@ wheels/
 # Local agent tool state
 .claude/
 .codex/
+.omx/
