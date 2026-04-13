@@ -12,7 +12,7 @@ from tiny_agent_harness.schemas import (
     ListenerEvent,
     ModelsConfig,
     SubAgentCall,
-    SupervisorOutput,
+    SupervisorStep,
     ToolInput,
     ToolPermissionsConfig,
     WorkerOutput,
@@ -108,7 +108,7 @@ def _listener_kinds(events: Sequence[ListenerEvent]) -> list[str]:
 def test__run_happy_path_integration(monkeypatch, tmp_path):
     provider = ScriptedProvider(
         [
-            SupervisorOutput(
+            SupervisorStep(
                 task="say hello",
                 status="completed",
                 summary="hello from harness",
@@ -138,7 +138,7 @@ def test__run_happy_path_integration(monkeypatch, tmp_path):
 def test_run_dequeues_request_and_emits_output_event(monkeypatch, tmp_path):
     provider = ScriptedProvider(
         [
-            SupervisorOutput(
+            SupervisorStep(
                 task="queued task",
                 status="completed",
                 summary="processed from queue",
@@ -167,7 +167,7 @@ def test_run_resolves_skill_successfully(monkeypatch, tmp_path):
     ) -> str:
         assert messages[1]["content"].startswith("task: Split changes into logical commits.")
         assert "Additional instructions: group by feature" in messages[1]["content"]
-        return SupervisorOutput(
+        return SupervisorStep(
             task="resolved commit task",
             status="completed",
             summary="commit workflow ready",
@@ -221,7 +221,7 @@ def test_supervisor_failure_is_reflected_in_response_and_listener_events(
 ):
     provider = ScriptedProvider(
         [
-            SupervisorOutput(
+            SupervisorStep(
                 task="blocked task",
                 status="failed",
                 summary="cannot complete requested change",
@@ -254,7 +254,7 @@ def test_malformed_tool_call_is_recoverable_in_harness_run(
 ):
     provider = ScriptedProvider(
         [
-            SupervisorOutput(
+            SupervisorStep(
                 task="repair flow",
                 status="subagent_call",
                 subagent_call=SubAgentCall(agent="worker", task="inspect target file"),
@@ -271,7 +271,7 @@ def test_malformed_tool_call_is_recoverable_in_harness_run(
                 status="completed",
                 summary="recovered after tool failure",
             ).model_dump_json(),
-            SupervisorOutput(
+            SupervisorStep(
                 task="repair flow",
                 status="completed",
                 summary="worker recovered from malformed tool call",
@@ -310,7 +310,7 @@ def test_cli_one_shot_smoke_runs_real_harness_entrypoint(
 ):
     provider = ScriptedProvider(
         [
-            SupervisorOutput(
+            SupervisorStep(
                 task="cli smoke",
                 status="completed",
                 summary="cli smoke ok",

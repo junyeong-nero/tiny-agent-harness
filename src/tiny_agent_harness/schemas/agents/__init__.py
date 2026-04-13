@@ -17,5 +17,6 @@ from tiny_agent_harness.schemas.agents.verifier import (
 from tiny_agent_harness.schemas.agents.supervisor import (
     SubAgentCall,
     SupervisorInput,
+    SupervisorStep,
     SupervisorOutput,
 )

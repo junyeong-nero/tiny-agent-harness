@@ -23,14 +23,24 @@ class SupervisorInput(BaseModel):
     task: str
 
 
-class SupervisorOutput(BaseModel):
-    """LLM output at each supervisor step and the final result."""
+class SupervisorStep(BaseModel):
+    """Decision emitted by the supervisor LLM for a single orchestration step."""
 
     model_config = ConfigDict(extra="forbid")
 
     task: str
     status: Literal["subagent_call", "completed", "failed"]
     subagent_call: SubAgentCall | None = None
+    summary: str
+
+
+class SupervisorOutput(BaseModel):
+    """Final supervisor result after running one or more supervisor steps."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    task: str
+    status: Literal["completed", "failed"]
     summary: str
     planner_outputs: list[PlannerOutput] = Field(default_factory=list)
     explore_outputs: list[ExploreOutput] = Field(default_factory=list)

@@ -17,6 +17,7 @@ from tiny_agent_harness.schemas.agents import (
     VerifierOutput,
     SubAgentCall,
     SupervisorInput,
+    SupervisorStep,
     SupervisorOutput,
 )
 from tiny_agent_harness.schemas.skills import SkillResult
@@ -43,6 +44,7 @@ __all__ = [
     "VerifierOutput",
     "SubAgentCall",
     "SupervisorInput",
+    "SupervisorStep",
     "SupervisorOutput",
     "HarnessInput",
     "HarnessOutput",

@@ -1,5 +1,5 @@
 import pytest
-from unittest.mock import MagicMock, patch, call
+from unittest.mock import MagicMock, patch
 
 from tiny_agent_harness.agents.supervisor.agent import SupervisorAgent, _MAX_STEPS
 from tiny_agent_harness.agents.supervisor.prompt import build_messages
@@ -7,7 +7,7 @@ from tiny_agent_harness.schemas import (
     ExploreInput, ExploreOutput,
     PlannerInput, PlannerOutput,
     VerifierInput, VerifierOutput,
-    SupervisorInput, SupervisorOutput,
+    SupervisorInput, SupervisorOutput, SupervisorStep,
     WorkerInput, WorkerOutput,
 )
 from tiny_agent_harness.schemas.agents.planner import Plan
@@ -21,13 +21,13 @@ def _sup_input(**kw) -> SupervisorInput:
     return SupervisorInput(**{"task": "build a feature", **kw})
 
 
-def _step(**kw) -> SupervisorOutput:
+def _step(**kw) -> SupervisorStep:
     defaults = {"task": "build a feature", "status": "completed", "summary": "done"}
-    return SupervisorOutput(**{**defaults, **kw})
+    return SupervisorStep(**{**defaults, **kw})
 
 
-def _step_call(agent: str, task: str, summary: str = "delegating") -> SupervisorOutput:
-    return SupervisorOutput(
+def _step_call(agent: str, task: str, summary: str = "delegating") -> SupervisorStep:
+    return SupervisorStep(
         task="build a feature",
         status="subagent_call",
         subagent_call=SubAgentCall(agent=agent, task=task),
@@ -77,15 +77,15 @@ class TestSubAgentCall:
             SubAgentCall(agent="worker", task="x", extra="y")
 
 
-# ── SupervisorOutput — step-level fields ─────────────────────────────────────
+# ── SupervisorStep — step-level fields ─────────────────────────────────────
 
-class TestSupervisorOutputStepFields:
+class TestSupervisorStepFields:
     def test_completed_without_subagent_call(self):
-        so = SupervisorOutput(task="t", status="completed", summary="all done")
+        so = SupervisorStep(task="t", status="completed", summary="all done")
         assert so.subagent_call is None
 
     def test_subagent_call_status(self):
-        so = SupervisorOutput(
+        so = SupervisorStep(
             task="t",
             status="subagent_call",
             subagent_call=SubAgentCall(agent="worker", task="write code"),
@@ -95,12 +95,12 @@ class TestSupervisorOutputStepFields:
 
     def test_all_status_values(self):
         for status in ("subagent_call", "completed", "failed"):
-            so = SupervisorOutput(task="t", status=status, summary="x")
+            so = SupervisorStep(task="t", status=status, summary="x")
             assert so.status == status
 
     def test_invalid_status_rejected(self):
         with pytest.raises(Exception):
-            SupervisorOutput(task="t", status="unknown", summary="x")
+            SupervisorStep(task="t", status="unknown", summary="x")
 
 
 # ── SupervisorInput / SupervisorOutput schema ─────────────────────────────────
@@ -128,6 +128,10 @@ class TestSupervisorSchemas:
         assert len(so.planner_outputs) == 1
         assert len(so.worker_outputs) == 1
         assert len(so.verifier_outputs) == 1
+
+    def test_output_rejects_step_only_status(self):
+        with pytest.raises(Exception):
+            SupervisorOutput(task="t", status="subagent_call", summary="delegating")
 
     def test_output_extra_fields_forbidden(self):
         with pytest.raises(Exception):
@@ -163,10 +167,10 @@ class TestSupervisorAgentRunDirect:
         SupervisorAgent(llm, _mock_tool_executor()).run(_sup_input())
         llm.chat_structured.assert_called_once()
 
-    def test_llm_called_with_supervisor_output_schema(self):
+    def test_llm_called_with_supervisor_step_schema(self):
         llm = _mock_llm(_step())
         SupervisorAgent(llm, _mock_tool_executor()).run(_sup_input())
-        assert llm.chat_structured.call_args.kwargs["response_model"] is SupervisorOutput
+        assert llm.chat_structured.call_args.kwargs["response_model"] is SupervisorStep
 
     def test_failed_status_propagated(self):
         result = SupervisorAgent(_mock_llm(_step(status="failed", summary="cannot do")), _mock_tool_executor()).run(_sup_input())
@@ -284,7 +288,7 @@ class TestSupervisorAgentSubagentDispatch:
         assert result.worker_outputs[1].summary == "step 2"
 
     @patch("tiny_agent_harness.agents.supervisor.agent.WorkerAgent")
-    def test_subagent_result_appended_to_messages(self, mock_worker_agent):
+    def test_subagent_result_is_available_in_followup_messages(self, mock_worker_agent):
         mock_worker_agent.return_value.run.return_value = _worker_out(
             summary="file written"
         )
@@ -295,11 +299,11 @@ class TestSupervisorAgentSubagentDispatch:
 
         SupervisorAgent(llm, _mock_tool_executor()).run(_sup_input())
 
-        # Third LLM call (after worker result) should see the result in messages
         second_call_msgs = llm.chat_structured.call_args_list[1].kwargs["messages"]
         last_msg = second_call_msgs[-1]
         assert last_msg["role"] == "user"
-        assert "worker" in last_msg["content"]
+        assert "latest_subagent: worker" in last_msg["content"]
+        assert "file written" in last_msg["content"]
 
     def test_stops_after_max_steps(self):
         always_call = _step_call("worker", "do something")
@@ -336,6 +340,67 @@ class TestSupervisorAgentSubagentDispatch:
             "worker failed: max tool steps exceeded after 3 steps; pending tool call: bash"
         )
 
+    @patch("tiny_agent_harness.agents.supervisor.agent.VerifierAgent")
+    @patch("tiny_agent_harness.agents.supervisor.agent.WorkerAgent")
+    def test_verifier_retry_triggers_worker_retry_policy(
+        self,
+        mock_worker_agent,
+        mock_verifier_agent,
+    ):
+        mock_verifier_agent.return_value.run.return_value = _verifier_out(
+            decision="retry",
+            feedback="add regression tests and fix edge case handling",
+        )
+        mock_worker_agent.return_value.run.return_value = _worker_out(
+            summary="addressed verifier feedback",
+            changed_files=["src/app.py", "tests/test_app.py"],
+            test_results=["pytest tests/test_app.py"],
+        )
+        llm = _mock_llm(
+            _step_call("verifier", "verify the implementation"),
+            _step(summary="done"),
+        )
+
+        result = SupervisorAgent(llm, _mock_tool_executor()).run(_sup_input())
+
+        mock_verifier_agent.assert_called_once()
+        mock_worker_agent.assert_called_once()
+        retry_input = mock_worker_agent.return_value.run.call_args.args[0]
+        assert isinstance(retry_input, WorkerInput)
+        assert "original task: build a feature" in retry_input.task
+        assert "verifier feedback: add regression tests and fix edge case handling" in retry_input.task
+        assert result.status == "completed"
+        assert len(result.verifier_outputs) == 1
+        assert len(result.worker_outputs) == 1
+        assert result.worker_outputs[0].summary == "addressed verifier feedback"
+
+    @patch("tiny_agent_harness.agents.supervisor.agent.VerifierAgent")
+    @patch("tiny_agent_harness.agents.supervisor.agent.WorkerAgent")
+    def test_failed_retry_worker_result_marks_supervisor_failed(
+        self,
+        mock_worker_agent,
+        mock_verifier_agent,
+    ):
+        mock_verifier_agent.return_value.run.return_value = _verifier_out(
+            decision="retry",
+            feedback="fix the failing edge case",
+        )
+        mock_worker_agent.return_value.run.return_value = _worker_out(
+            status="failed",
+            summary="could not address verifier feedback",
+        )
+        llm = _mock_llm(
+            _step_call("verifier", "verify the implementation"),
+            _step(summary="done"),
+        )
+
+        result = SupervisorAgent(llm, _mock_tool_executor()).run(_sup_input())
+
+        assert result.status == "failed"
+        assert result.summary == "worker failed: could not address verifier feedback"
+        assert len(result.verifier_outputs) == 1
+        assert len(result.worker_outputs) == 1
+
 
 # ── build_messages prompt ─────────────────────────────────────────────────────
 
@@ -360,3 +425,17 @@ class TestBuildMessages:
         system = build_messages(_sup_input())[0]["content"]
         assert "subagent_call" in system
         assert "completed" in system
+
+    def test_user_message_includes_accumulated_subagent_context(self):
+        msgs = build_messages(
+            _sup_input(),
+            steps=[_step_call("worker", "write file")],
+            worker_outputs=[_worker_out(summary="updated README")],
+            latest_subagent_name="worker",
+            latest_subagent_result=_worker_out(summary="updated README"),
+        )
+
+        user_content = msgs[1]["content"]
+        assert "step_history" in user_content
+        assert "latest_subagent: worker" in user_content
+        assert "updated README" in user_content
